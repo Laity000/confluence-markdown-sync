@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.1
+
+- Fix Windows PowerShell 5.1 locale-dependent decoding of the extension name, which incorrectly rejected existing v1.0-v1.4 installs.
+- Keep updater PowerShell sources ASCII-only while matching the exact expected Unicode manifest name.
+- Report the failing manifest field and leave registration of recurring tasks until after a successful first install.
+
 ## v1.4.0 — GitHub Releases Windows auto-update
 
 - Add one-time PowerShell installer and per-user hourly Task Scheduler updater.

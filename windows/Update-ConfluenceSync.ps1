@@ -5,7 +5,9 @@ param([switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Repo = 'Laity000/confluence-markdown-sync'
-$ExpectedName = 'Markdown → Confluence 内网同步'
+# ASCII-only source for Windows PowerShell 5.1: UTF-8 without BOM may be parsed as ACP.
+# Keep the extension's exact Unicode display name without locale-dependent decoding.
+$ExpectedName = 'Markdown ' + [char]0x2192 + ' Confluence ' + [char]0x5185 + [char]0x7F51 + [char]0x540C + [char]0x6B65
 $AllowedFiles = @('manifest.json','background.js','editor.html','editor.css','editor.js','wiki-converter.js','storage-converter.js','sync-core.js','icon16.png','icon48.png','icon128.png')
 $StateDir = $PSScriptRoot
 $ConfigFile = Join-Path $StateDir 'config.json'
@@ -26,8 +28,14 @@ function GetJson([string]$url) {
 }
 function VerifyManifest([string]$path) {
     $m = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($m.manifest_version -ne 3 -or $m.name -cne $ExpectedName -or !$m.background.service_worker -or $m.background.service_worker -ne 'background.js') {
-        throw "Unrecognized extension in $path; refusing to replace."
+    if ($m.manifest_version -ne 3) {
+        throw "Unsupported manifest_version in $path (expected 3). Refusing to replace."
+    }
+    if ([string]$m.name -cne $ExpectedName) {
+        throw "Unrecognized extension name in $path (expected this project's exact name). Refusing to replace."
+    }
+    if ([string]$m.background.service_worker -cne 'background.js') {
+        throw "Unrecognized extension service worker in $path (expected background.js). Refusing to replace."
     }
     [void](ParseVersion ([string]$m.version))
     return $m

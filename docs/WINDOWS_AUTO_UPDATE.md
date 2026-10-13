@@ -61,3 +61,18 @@ Chrome 在关闭、休眠或工作台打开时无法即时更新。**Windows 计
 - Windows 每小时检查；Chrome 扩展每 2 分钟检查本地标记，因此不是实时毫秒更新。用户开启编辑器时会推迟热重载，保护未保存 Markdown 和正在进行的同步。
 - 本项目是面向个人或授权企业环境的开发模式工具；**企业 Chrome 策略可能禁止开发者模式/计划任务**，这种情况下请咨询 IT，而不是绕过限制。
 - 若以后加入新的扩展运行文件，需要同时更新脚本内的 `AllowedFiles` 白名单并重新安装 Windows 更新器。
+
+## v1.4.1 fix: existing installation rejected as unrecognized
+
+If an older updater printed `Unrecognized extension in D:\confluence_sync_ext\manifest.json`,
+it may have been executed with Windows PowerShell 5.1's ANSI encoding rather than UTF-8,
+corrupting the Chinese name literal in the script. The updater itself was at fault.
+
+Fix procedure (keep your existing extension folder):
+
+1. Download or clone the latest repository source (v1.4.1 or later).
+2. Run the updated `windows/Install-ConfluenceSyncUpdater.ps1` with the **same** `-ExtensionPath` previously entered.
+3. Verify the updater log and open `chrome://extensions` to reload the extension **once** when migrating from older versions.
+
+The updater will continue to reject directories whose manifest name, Manifest V3 setting, or service-worker entry do not match this project. Do not bypass the identity check.
+No Confluence credentials or browser profiles are modified.

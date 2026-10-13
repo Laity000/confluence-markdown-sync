@@ -16,6 +16,12 @@ $config=@{repository=$repo;extensionPath=$path} | ConvertTo-Json -Compress
 [System.IO.File]::WriteAllText((Join-Path $state 'config.json'),$config,(New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Updater installed at $state"
 Write-Host "Extension path: $path"
+# Validate and install the first package BEFORE registering the periodic task.
+# This prevents a failed first install from leaving a recurring failing task behind.
+& $script
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    throw 'The initial release download failed. Check updater.log and the GitHub release status.'
+}
 if (!$NoTask) {
     $identity=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -File "'+$script+'"')
@@ -26,8 +32,5 @@ if (!$NoTask) {
     Register-ScheduledTask -TaskName 'ConfluenceMarkdownSync-AutoUpdate' -Action $action -Trigger @($logon,$hourly) -Principal $principal -Settings $settings -Force | Out-Null
     Write-Host 'Scheduled Task configured: at logon and every hour (current Windows user only).'
 } else { Write-Host 'No scheduled task created (-NoTask was set).' }
-# Run now so the first extension package is installed immediately.
-& $script
-if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw 'The initial release download failed. Check updater.log and the GitHub release status.' }
 Write-Host "FIRST TIME: open chrome://extensions -> Developer mode -> Load unpacked -> $path"
 Write-Host 'If upgrading an existing v1.3 installation, reload it manually ONCE after installation.'

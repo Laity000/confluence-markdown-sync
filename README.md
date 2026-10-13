@@ -108,3 +108,7 @@
 ## v1.4 · GitHub Releases + Windows 自动更新
 
 请阅读 [Windows 自动更新安装与安全说明](docs/WINDOWS_AUTO_UPDATE.md)。首次执行安装脚本后，Chrome 只需要加载已解压的插件目录一次。此后 Windows 每小时从指定仓库的最新正式 GitHub Release 检查版本、校验 SHA256、更新文件；扩展的背景服务每 2 分钟发现本地版本标记后，在未打开同步编辑器时自行 `chrome.runtime.reload()`。新版未替代 Chrome/Edge 商店的正式原生自动更新，仅针对通过“加载已解压的扩展程序”安装的 Windows 版本。
+
+## Windows auto-update v1.4.1 hotfix
+
+Fixes `Unrecognized extension ... manifest.json` when a Windows PowerShell 5.1 machine decodes a BOM-less UTF-8 updater script with the local ANSI code page. Reinstall the Windows updater from this release with the SAME extension folder path; the existing Chrome extension remains installed. See [Windows updater guide](docs/WINDOWS_AUTO_UPDATE.md).
