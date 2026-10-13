@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.0 — GitHub Releases Windows auto-update
+
+- Add one-time PowerShell installer and per-user hourly Task Scheduler updater.
+- Validate GitHub release ZIP SHA256 and strict runtime allowlist; recover overwritten files if a copy fails.
+- Add MV3 `chrome.alarms` + `chrome.runtime.reload()` polling of a local update marker.
+- Defer extension reload while any Confluence sync editor tab is open.
+- Automatically create versioned GitHub Releases from main after CI tests pass.
+- Existing v1.3 unpacked installations need one manual extension reload to activate the new background worker.
+
 ## Unreleased — Chrome Web Store distribution
 
 - Add deterministic store ZIP packaging, automated GitHub Actions release pipeline (Chrome Web Store API v2), and first-publish documentation.

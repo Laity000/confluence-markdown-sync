@@ -103,3 +103,8 @@
 已支持 Chrome Web Store 上架和 GitHub Actions 自动提审：`python3 scripts/package_extension.py` 可生成纯扩展 ZIP；`.github/workflows/chrome-web-store.yml` 在推送与 `manifest.json` 版本一致的 `v*` 标签后自动打包、运行测试、并在已配置服务账号的情况下上传到 Chrome Web Store 提交审核。首次仍需在 [Chrome Web Store 开发者后台](https://chrome.google.com/webstore/devconsole) 自行注册、创建商品并完成首次审核。详细步骤和权限说明见 [上架与自动更新指南](docs/CHROME_WEB_STORE.md)。
 
 注意：GitHub tag 触发的是**提交商店审核**，审核通过且发布后，**从商店安装**的用户才会通过 Chrome 自动更新；加载解压目录的开发版不会自动更新。建议公司内网工具选用商店 Unlisted，而不是将含真实内网资料的截图/示例放在公开商店详情页。
+
+
+## v1.4 · GitHub Releases + Windows 自动更新
+
+请阅读 [Windows 自动更新安装与安全说明](docs/WINDOWS_AUTO_UPDATE.md)。首次执行安装脚本后，Chrome 只需要加载已解压的插件目录一次。此后 Windows 每小时从指定仓库的最新正式 GitHub Release 检查版本、校验 SHA256、更新文件；扩展的背景服务每 2 分钟发现本地版本标记后，在未打开同步编辑器时自行 `chrome.runtime.reload()`。新版未替代 Chrome/Edge 商店的正式原生自动更新，仅针对通过“加载已解压的扩展程序”安装的 Windows 版本。
