@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Markdown → Confluence 内网同步</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header class="hero">
+ <div class="hero-inner">
+  <div class="eyebrow">CONFLUENCE LOCAL SYNC · 1.2</div>
+  <h1>Markdown <span>→</span> Confluence</h1>
+  <p>复用浏览器已登录会话 · 转换预览 · 一键同步 · 版本冲突检查 · 不保存账号密码</p>
+ </div>
+</header>
+<main>
+ <section class="panel">
+  <h2><span class="num">1</span> 目标 Confluence 页面</h2>
+  <label for="url">目标页面 URL（http://，可包含 /confluence 子路径）</label>
+  <div class="row url-row">
+   <input id="url" type="url" placeholder="http://intranet/confluence/pages/viewpage.action?pageId=123456" spellcheck="false" />
+   <button id="openPage" class="btn secondary">打开页面</button>
+  </div>
+  <div class="tip">请先在 Chrome / Edge 中登录 Confluence，并保持任意一个同站点的 Confluence 页面处于打开状态。首次访问该内网域名时，浏览器会要求你授权扩展访问该站点。</div>
+ </section>
+ <section class="panel">
+  <h2><span class="num">2</span> 编辑 Markdown</h2>
+  <div class="row row-space"><div class="controls"><button class="btn primary" id="choose">选择 .md 文件</button><input id="file" type="file" accept=".md,.markdown,.txt" hidden><button id="copyWiki" class="btn secondary">复制 Wiki Markup</button><button id="downloadWiki" class="btn secondary">导出 Wiki TXT</button></div><span id="fileLabel" class="muted">支持直接粘贴或拖入文件</span><label class="select-label">文件编码 <select id="fileEncoding"><option value="utf-8">UTF-8</option><option value="gb18030">GBK/GB18030</option></select></label></div>
+  <textarea id="markdown" spellcheck="false" placeholder="# 文档标题&#10;&#10;## LLVM DebugInfo&#10;&#10;```cpp&#10;int a = 10;&#10;```"></textarea>
+  <div class="row row-space"><small id="parseInfo" class="muted">正在等待 Markdown 输入</small><label class="select-label">Storage 转换方式 <select id="mode"><option value="auto">Confluence Wiki → Storage（优先，失败后使用兼容转换）</option><option value="server">仅 Confluence Wiki → Storage</option><option value="local">仅本地 Storage（基础语法）</option></select></label></div>
+  <div id="mdWarnings" class="alert warn" hidden></div>
+ </section>
+ <section class="panel">
+  <div class="row row-space title-line"><h2><span class="num">3</span> 读取远端并预览差异</h2><button id="preview" class="btn primary">连接并生成同步预览</button></div>
+  <div id="status" class="alert info" role="status">尚未连接；不会自动向 Confluence 写入内容。</div>
+  <div id="meta" class="meta" hidden></div>
+  <div id="diffPanel" hidden>
+   <div class="row row-space preview-header"><h3>正文变更预览（文本级近似对比）</h3><span id="diffCount" class="muted"></span></div>
+   <div id="diff" class="diff" aria-label="差异预览"></div>
+   <p class="muted tiny">此处将 Storage XHTML 提取为可读文本对比，不是 Confluence 最终渲染画面；代码、表格和宏等还应检查下方源码预览。</p>
+   <details><summary>查看生成的 Confluence Wiki Markup</summary><textarea class="source" id="wiki" readonly></textarea></details>
+   <details><summary>查看即将写入的 Storage XHTML</summary><textarea class="source" id="storage" readonly></textarea></details>
+   <details><summary>查看远端现有 Storage XHTML</summary><textarea class="source" id="original" readonly></textarea></details>
+  </div>
+ </section>
+ <section class="panel publish">
+  <h2><span class="num">4</span> 确认并同步</h2>
+  <div class="tip"><strong>同步将替换目标页面的全部正文。</strong>请先查看上方预览，之后可直接点击同步，无需勾选或下载备份。同步前仍会重新检查页面版本、标题和正文；如有冲突则停止。Confluence 自身的页面历史可用于恢复旧版本；如需额外 JSON 备份，可手动下载。</div>
+  <div class="row row-space"><div class="controls"><button id="publish" class="btn danger" disabled>同步更新页面</button><button id="backup" class="btn secondary" disabled>手动下载原页面备份（可选）</button></div><span id="publishHint" class="muted">先执行同步预览</span></div>
+ </section>
+ <footer>纯本地浏览器扩展 · 不采集 Cookie、不保存密码、不上传到第三方服务器 · HTTP 明文传输风险取决于企业内网及 Confluence 部署配置。</footer>
+</main>
+<script src="wiki-converter.js"></script><script src="storage-converter.js"></script><script src="sync-core.js"></script><script src="editor.js"></script>
+</body></html>

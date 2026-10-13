@@ -1,0 +1,18 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Development/build artifacts
+node_modules/
+dist/
+build/
+coverage/
+*.log
+*.zip
+
+# Local/private files
+.env
+.env.*
+*.local.json
