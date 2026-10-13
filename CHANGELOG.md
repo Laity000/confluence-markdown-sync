@@ -1,11 +1,16 @@
 # Changelog
 
+## Unreleased — Chrome Web Store distribution
+
+- Add deterministic store ZIP packaging, automated GitHub Actions release pipeline (Chrome Web Store API v2), and first-publish documentation.
+- Add draft Store Listing and privacy disclosure. No change to extension runtime features.
+
 ## v1.3.0
 
-- Fix Markdown inline backtick code parsing, including `VARSTRUCT1.B[index]`.
-- Match exact backtick run lengths and preserve literal inner backticks.
-- Fix nested formatting placeholder leaks (bold/strikethrough and inline code).
-- Add inline-code regression tests; preserve v1.2 bracket escaping.
+- Fix inline Markdown backtick code parsing for PLC expressions such as `VARSTRUCT1.B[index]`.
+- Match only equal-length backtick delimiters (single or double); preserve literal inner backticks.
+- Fix placeholder leaks when inline code appears inside bold/strikethrough formatting.
+- Add inline-code regression tests; keep v1.2 bracket-link protections.
 
 ## v1.2.0
 

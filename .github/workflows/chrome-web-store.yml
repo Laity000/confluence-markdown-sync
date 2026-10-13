@@ -1,0 +1,71 @@
+name: Chrome Web Store release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Upload the ZIP and submit it to Chrome Web Store (requires secrets and an existing store item)'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-store-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regression tests
+        run: |
+          set -euo pipefail
+          for f in test_*.js; do node "$f"; done
+      - name: Test package allowlist and manifest version guard
+        run: python3 -m unittest discover -s scripts -p "test_*.py"
+      - name: Package extension (runtime files only)
+        shell: bash
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          expected_version=''
+          if [[ "$RELEASE_TYPE" == 'tag' ]]; then
+            expected_version="${RELEASE_REF#refs/tags/}"
+          fi
+          if [[ -n "$expected_version" ]]; then
+            python3 scripts/package_extension.py --version "$expected_version"
+          else
+            python3 scripts/package_extension.py
+          fi
+          python3 -m zipfile -l dist/confluence-markdown-sync.zip
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension-package
+          path: dist/confluence-markdown-sync.zip
+          if-no-files-found: error
+      - name: Authenticate and submit new version
+        if: ${{ (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
+        env:
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          # Fail before contacting the API if the publisher has not configured secrets.
+          test -n "$CWS_PUBLISHER_ID" || { echo 'Configure CWS_PUBLISHER_ID'; exit 1; }
+          test -n "$CWS_EXTENSION_ID" || { echo 'Configure CWS_EXTENSION_ID'; exit 1; }
+          test -n "$CWS_SERVICE_ACCOUNT_JSON" || { echo 'Configure CWS_SERVICE_ACCOUNT_JSON'; exit 1; }
+          npm install --no-save --no-package-lock --ignore-scripts google-auth-library@10
+          node scripts/publish_cws.mjs dist/confluence-markdown-sync.zip

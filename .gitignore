@@ -16,3 +16,6 @@ coverage/
 .env
 .env.*
 *.local.json
+
+# Generated service-account credential files from CI
+gha-creds-*.json

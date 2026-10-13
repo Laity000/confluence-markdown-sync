@@ -90,8 +90,16 @@
 - Markdown 正规链接 `[标题](URL)`、图片、围栏代码块不会被误转换为普通文本；直接 Storage XHTML 转换原样保留方括号。
 - 回归测试：`node test_brackets_regression.js`。已做本地转换单元测试，仍需在你的实际 Confluence Server/Data Center 上用一张测试页确认渲染。
 - 如果页面已被旧版同步成错误的链接，请升级扩展并用未被污染的原始 Markdown 重新预览、同步一次。
+
 ## v1.3 行内代码解析修复
 
-- Markdown 中的行内代码 `VARSTRUCT1.B[index]`（使用单反引号包裹）转换为 Confluence 等宽代码，不应生成页面链接。
-- 支持单反引号、双反引号及嵌套加粗和删除线；修复非法占位符残留。
-- 回归测试：`node test_inline_code_regression.js`。升级扩展后请重新加载并生成同步预览。
+- 将 Markdown 行内代码如 `` `VARSTRUCT1.B[index]` `` 正确转换为 Confluence 等宽代码，不将 `index` 解析为页面链接。
+- 支持单反引号和长度匹配的双反引号，如 `` `` `code` `` ``（参见测试样例）。
+- 修复加粗、删除线与行内代码组合时偶发的特殊占位符残留。
+- 回归测试：`node test_inline_code_regression.js`。升级后需要在扩展管理页重新加载扩展，重新生成同步预览。
+
+## Chrome Web Store 自动更新发布
+
+已支持 Chrome Web Store 上架和 GitHub Actions 自动提审：`python3 scripts/package_extension.py` 可生成纯扩展 ZIP；`.github/workflows/chrome-web-store.yml` 在推送与 `manifest.json` 版本一致的 `v*` 标签后自动打包、运行测试、并在已配置服务账号的情况下上传到 Chrome Web Store 提交审核。首次仍需在 [Chrome Web Store 开发者后台](https://chrome.google.com/webstore/devconsole) 自行注册、创建商品并完成首次审核。详细步骤和权限说明见 [上架与自动更新指南](docs/CHROME_WEB_STORE.md)。
+
+注意：GitHub tag 触发的是**提交商店审核**，审核通过且发布后，**从商店安装**的用户才会通过 Chrome 自动更新；加载解压目录的开发版不会自动更新。建议公司内网工具选用商店 Unlisted，而不是将含真实内网资料的截图/示例放在公开商店详情页。
