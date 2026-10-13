@@ -5,11 +5,37 @@
   'use strict';
   const xml=(s)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
   const cmap={c:'c',cpp:'cpp','c++':'cpp',cxx:'cpp',cc:'cpp',java:'java',js:'javascript',javascript:'javascript',ts:'javascript',python:'python',py:'python',json:'javascript',xml:'xml',html:'html',css:'css',sql:'sql',bash:'bash',sh:'bash',yaml:'yaml',yml:'yaml',groovy:'groovy',powershell:'powershell',diff:'diff',txt:'none',text:'none',st:'none',llvm:'none'};
+  // Markdown code spans require exactly equal-length opening/closing backtick runs.
+  // Longer runs inside a span remain literal characters.
+  function replaceCodeSpans(source, renderCode) {
+    let result = '', i = 0;
+    while (i < source.length) {
+      if (source[i] !== '`') { result += source[i++]; continue; }
+      const start = i;
+      while (source[i] === '`') i++;
+      const length = i - start;
+      let close = -1, end = -1, cursor = i;
+      while ((cursor = source.indexOf('`', cursor)) !== -1) {
+        let next = cursor;
+        while (source[next] === '`') next++;
+        if (next - cursor === length) { close = cursor; end = next; break; }
+        cursor = next;
+      }
+      if (close === -1) { result += source.slice(start, i); continue; }
+      let body = source.slice(i, close).replace(/\r\n?|\n/g, ' ');
+      if (body.startsWith(' ') && body.endsWith(' ') && /[^ ]/.test(body)) {
+        body = body.slice(1, -1);
+      }
+      result += renderCode(body);
+      i = end;
+    }
+    return result;
+  }
   function inline(src,warnings){
     let s=String(src); const saved=[];
     const hold=(v)=>{const mark='\uE400'+saved.length+'\uE401';saved.push(v);return mark;};
     s=s.replace(/\\([\\`*_{}\[\]()#+.!<>|~\-])/g,(_,c)=>hold(xml(c)));
-    s=s.replace(/(`+)([\s\S]*?)\1/g,(_,tick,code)=>hold('<code>'+xml(code.replace(/\n/g,' '))+'</code>'));
+    s=replaceCodeSpans(s,code=>hold('<code>'+xml(code)+'</code>'));
     s=s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(_,alt,href)=>{
       warnings.push('检测到 Markdown 图片：本版本不会自动上传附件，已阻止自动同步，防止图片丢失。');
       return hold('<strong>[图片未同步：'+xml(alt||href)+']</strong>');

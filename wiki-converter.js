@@ -12,6 +12,32 @@
     // Confluence uses pipes as table delimiters; let the caller decide where escaping is needed.
     return value;
   }
+  // Markdown code spans require exactly equal-length opening/closing backtick runs.
+  // Longer runs inside a span remain literal characters.
+  function replaceCodeSpans(source, renderCode) {
+    let result = '', i = 0;
+    while (i < source.length) {
+      if (source[i] !== '`') { result += source[i++]; continue; }
+      const start = i;
+      while (source[i] === '`') i++;
+      const length = i - start;
+      let close = -1, end = -1, cursor = i;
+      while ((cursor = source.indexOf('`', cursor)) !== -1) {
+        let next = cursor;
+        while (source[next] === '`') next++;
+        if (next - cursor === length) { close = cursor; end = next; break; }
+        cursor = next;
+      }
+      if (close === -1) { result += source.slice(start, i); continue; }
+      let body = source.slice(i, close).replace(/\r\n?|\n/g, ' ');
+      if (body.startsWith(' ') && body.endsWith(' ') && /[^ ]/.test(body)) {
+        body = body.slice(1, -1);
+      }
+      result += renderCode(body);
+      i = end;
+    }
+    return result;
+  }
   function inline(src, state) {
     let s = String(src == null ? '' : src);
     const saved = [];
@@ -19,7 +45,7 @@
     // Backslash-escaped punctuation is literal in Markdown. Keep it escaped for Wiki Markup.
     s = s.replace(/\\([\\`*_{}\[\]()#+.!<>|~\-])/g, (_, c) => keep('\\' + c));
     // Markdown inline code spans, with matching arbitrary-length backtick runs.
-    s = s.replace(/(`+)([\s\S]*?)\1/g, (_, ticks, code) => keep('{{' + code.replace(/\r?\n/g, ' ') + '}}'));
+    s = replaceCodeSpans(s, code => keep('{{' + code + '}}'));
     // Markdown images are references. Attachments must still be uploaded to Confluence.
     s = s.replace(/!\[([^\]]*)\]\(\s*(<[^>]+>|[^\s)]+)(?:\s+["'][^"']*["'])?\s*\)/g, (_, alt, url) => {
       state.stats.images++;
@@ -58,7 +84,12 @@
     s = s.replace(/~~(?=\S)([\s\S]*?\S)~~/g, (_, body) => keep('-' + body + '-'));
     s = s.replace(/(?<![\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, '_$1_');
     s = s.replace(/(?<![\w_])_(?=\S)([^_\n]*?\S)_(?![\w_])/g, '_$1_');
-    s = s.replace(/\uE000(\d+)\uE001/g, (_, n) => saved[Number(n)]);
+    // Formatting may contain saved inline-code markers: unwrap every layer.
+    for (let depth=0; depth<=saved.length; depth++) {
+      const next = s.replace(/\uE000(\d+)\uE001/g, (_, n) => saved[Number(n)]);
+      if (next === s) break;
+      s = next;
+    }
     return escapeFragment(s);
   }
 
