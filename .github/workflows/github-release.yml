@@ -15,6 +15,9 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.check.outputs.exists == 'false' }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           for test in test_*.js; do node "$test"; done
-      - name: Packaging regression tests
+      - name: Chrome/Edge packaging and publisher regression tests
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
       - name: Read manifest version
         id: version
@@ -55,8 +58,12 @@ jobs:
           set -euo pipefail
           file="confluence-markdown-sync-extension-v${VERSION}.zip"
           python3 scripts/package_extension.py --version "$TAG" --output "dist/$file"
+          edge="confluence-markdown-sync-edge-v${VERSION}.zip"
+          python3 scripts/package_extension.py --version "$TAG" --output "dist/$edge"
+          cmp "dist/$file" "dist/$edge"
+          python3 scripts/publish_edge_addon.py --package "dist/$edge" --dry-run
           cd dist
-          sha256sum "$file" > SHA256SUMS.txt
+          sha256sum "$file" "$edge" > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
       - name: Create release (new versions only)
         if: steps.check.outputs.exists == 'false'
@@ -68,6 +75,33 @@ jobs:
           set -euo pipefail
           gh release create "$TAG" \
             "dist/confluence-markdown-sync-extension-v${VERSION}.zip" \
+            "dist/confluence-markdown-sync-edge-v${VERSION}.zip" \
             "dist/SHA256SUMS.txt" \
             --target "$GITHUB_SHA" --title "Confluence Markdown Sync $TAG" \
             --notes "Chrome/Edge unpacked extension release. Windows updater checks SHA256 before applying. Install once using windows/Install-ConfluenceSyncUpdater.ps1."
+
+  edge_publish:
+    # The Update API cannot create a new Edge product; first listing is manual.
+    needs: release
+    if: ${{ needs.release.outputs.created == 'true' && vars.EDGE_PRODUCT_ID != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Edge Store ZIP
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          python3 scripts/package_extension.py --version "v$VERSION" --output "dist/confluence-markdown-sync-edge-v${VERSION}.zip"
+      - name: Upload and submit Edge update for review
+        env:
+          EDGE_PRODUCT_ID: ${{ vars.EDGE_PRODUCT_ID }}
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 scripts/publish_edge_addon.py \
+            --package "dist/confluence-markdown-sync-edge-v${VERSION}.zip" \
+            --notes "Automated Confluence Markdown Sync v${VERSION} update."

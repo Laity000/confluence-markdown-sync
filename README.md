@@ -120,3 +120,7 @@ Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `
 当 Markdown 中包含 `VARSTRUCT1.B[index]`、`STRING[80]` 等 PLC 方括号表达式时，「自动」模式将**绕过服务器 Wiki 转换**，直接由本地转换器生成 Confluence Storage XHTML。行内代码会输出 `<code>VARSTRUCT1.B[index]</code>`，不包含链接；「仅服务器 Wiki」模式将明确拒绝，以免污染页面；普通文档保持此前的服务器优先策略。
 
 注意本地转换器只支持基本 Markdown 格式，预览时请再次核对复杂表格和宏；已被污染的页面需要从原始 Markdown 重新生成预览并同步。包含 PLC 方括号表达式的内容将禁止复制或导出存在解析风险的 Wiki Markup。
+
+## Microsoft Edge Add-ons 自动发布
+
+每次新版本的 GitHub Release 同时生成 Chrome/Windows 和 Microsoft Edge ZIP。首次需在微软 Partner Center 手动上架；完成后配置 GitHub Actions 的 EDGE_PRODUCT_ID、EDGE_CLIENT_ID、EDGE_API_KEY，即可自动将后续版本提交 Edge 审核。详见 [Edge 发布指南](docs/EDGE_ADDONS.md)。

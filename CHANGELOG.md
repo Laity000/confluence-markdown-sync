@@ -1,3 +1,9 @@
+## v1.4.3
+
+- Add dual-platform ZIP artifacts to GitHub Releases without changing Windows updater compatibility.
+- Add Microsoft Edge Add-ons API v1.1 automatic submissions for already published products.
+- Add publisher regression tests and setup documentation.
+
 ## v1.4.2
 
 - Fix Confluence Wiki auto-linking of `VARSTRUCT1.B[index]` inside `{{monospace}}` by routing sensitive expressions straight to local Storage XHTML (`<code>` for Markdown inline code).
