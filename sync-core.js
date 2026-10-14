@@ -53,6 +53,41 @@
   function safeFilename(name) {
     return String(name||'page').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').slice(0,65).trim()||'page';
   }
+  // Wiki Markup can turn literal PLC indexing into Confluence page links,
+  // including inside {{monospace}}. Do not rely on the escaped Wiki output:
+  // select direct Storage XHTML for identifier[expression] outside code fences.
+  function hasWikiSensitiveBrackets(markdown) {
+    const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
+    let fence = null;
+    const expression = /[A-Za-z_$][A-Za-z0-9_.$]*\[[^\]\r\n]{1,160}\]/;
+    for (const line of lines) {
+      if (fence) {
+        const close = new RegExp('^ {0,3}' + fence.char + '{' + fence.length + ',}\\s*$');
+        if (close.test(line)) fence = null;
+        continue;
+      }
+      const opening = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      if (opening) {
+        fence = { char: opening[1][0], length: opening[1].length };
+        continue;
+      }
+      if (expression.test(line)) return true;
+    }
+    return false;
+  }
+  function selectConversionMode(markdown, requestedMode) {
+    if (!['auto', 'server', 'local'].includes(requestedMode)) throw new Error('未知的 Storage 转换方式。');
+    const needsLocal = hasWikiSensitiveBrackets(markdown);
+    if (needsLocal && requestedMode === 'server') {
+      throw new Error('文档包含 VARSTRUCT1.B[index] / STRING[80] 形式的方括号表达式；Confluence Wiki 转换可能错误生成页面链接。请改为「自动」或「仅本地 Storage」。');
+    }
+    return {
+      mode: needsLocal ? 'local' : requestedMode,
+      warning: needsLocal && requestedMode === 'auto'
+        ? '检测到 PLC 数组/类型下标（例如 VARSTRUCT1.B[index]）。已跳过服务器 Wiki 解析，改为直接生成 Storage XHTML，避免代码中的 [index] 被转换为页面链接。请核对预览中的表格和格式。'
+        : ''
+    };
+  }
   // Defensive check for Confluence versions whose wiki renderer still treats
   // literal PLC brackets as new-page links, even after Wiki escaping.
   // Detect only targets that actually occur in source as identifier[index].
@@ -75,5 +110,5 @@
     }
     return [...found];
   }
-  return {parsePageUrl,requiredPage,conflict,payload,backupRecord,safeFilename,unexpectedBracketLinks};
+  return {parsePageUrl,requiredPage,conflict,payload,backupRecord,safeFilename,unexpectedBracketLinks,hasWikiSensitiveBrackets,selectConversionMode};
 });

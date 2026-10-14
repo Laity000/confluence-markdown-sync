@@ -27,7 +27,7 @@
   <h2><span class="num">2</span> 编辑 Markdown</h2>
   <div class="row row-space"><div class="controls"><button class="btn primary" id="choose">选择 .md 文件</button><input id="file" type="file" accept=".md,.markdown,.txt" hidden><button id="copyWiki" class="btn secondary">复制 Wiki Markup</button><button id="downloadWiki" class="btn secondary">导出 Wiki TXT</button></div><span id="fileLabel" class="muted">支持直接粘贴或拖入文件</span><label class="select-label">文件编码 <select id="fileEncoding"><option value="utf-8">UTF-8</option><option value="gb18030">GBK/GB18030</option></select></label></div>
   <textarea id="markdown" spellcheck="false" placeholder="# 文档标题&#10;&#10;## LLVM DebugInfo&#10;&#10;```cpp&#10;int a = 10;&#10;```"></textarea>
-  <div class="row row-space"><small id="parseInfo" class="muted">正在等待 Markdown 输入</small><label class="select-label">Storage 转换方式 <select id="mode"><option value="auto">Confluence Wiki → Storage（优先，失败后使用兼容转换）</option><option value="server">仅 Confluence Wiki → Storage</option><option value="local">仅本地 Storage（基础语法）</option></select></label></div>
+  <div class="row row-space"><small id="parseInfo" class="muted">正在等待 Markdown 输入</small><label class="select-label">Storage 转换方式 <select id="mode"><option value="auto">自动（普通文档优先 Wiki；PLC 方括号表达式直接 Storage）</option><option value="server">仅 Confluence Wiki → Storage</option><option value="local">仅本地 Storage（基础语法）</option></select></label></div>
   <div id="mdWarnings" class="alert warn" hidden></div>
  </section>
  <section class="panel">

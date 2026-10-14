@@ -1,3 +1,9 @@
+## v1.4.2
+
+- Fix Confluence Wiki auto-linking of `VARSTRUCT1.B[index]` inside `{{monospace}}` by routing sensitive expressions straight to local Storage XHTML (`<code>` for Markdown inline code).
+- Block unsafe server-only rendering for bracketed PLC indexing; preserve server renderer for regular Markdown.
+- Block vulnerable Wiki copy/export on affected documents and add integrated preview regression tests.
+
 # Changelog
 
 ## v1.4.1

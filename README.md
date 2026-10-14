@@ -112,3 +112,11 @@
 ## Windows auto-update v1.4.1 hotfix
 
 Fixes `Unrecognized extension ... manifest.json` when a Windows PowerShell 5.1 machine decodes a BOM-less UTF-8 updater script with the local ANSI code page. Reinstall the Windows updater from this release with the SAME extension folder path; the existing Chrome extension remains installed. See [Windows updater guide](docs/WINDOWS_AUTO_UPDATE.md).
+
+## v1.4.2：修复行内代码中的方括号误链接
+
+Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `[index]` 当作待创建页面链接，导致同步结果出现 `createpage.action?title=index`。这是 Confluence Wiki 二次解析，不是 Markdown 反引号闭合错误。
+
+当 Markdown 中包含 `VARSTRUCT1.B[index]`、`STRING[80]` 等 PLC 方括号表达式时，「自动」模式将**绕过服务器 Wiki 转换**，直接由本地转换器生成 Confluence Storage XHTML。行内代码会输出 `<code>VARSTRUCT1.B[index]</code>`，不包含链接；「仅服务器 Wiki」模式将明确拒绝，以免污染页面；普通文档保持此前的服务器优先策略。
+
+注意本地转换器只支持基本 Markdown 格式，预览时请再次核对复杂表格和宏；已被污染的页面需要从原始 Markdown 重新生成预览并同步。包含 PLC 方括号表达式的内容将禁止复制或导出存在解析风险的 Wiki Markup。

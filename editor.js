@@ -18,6 +18,7 @@ function refreshMarkdown(){
   invalidate();let md=els.md.value,res=Md2Confluence.convert(md);
   $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项`;
   let warns=[...res.warnings];
+  if(SyncCore.hasWikiSensitiveBrackets(md))warns.push('包含 PLC 方括号表达式：自动同步将直接使用 Storage XHTML；请勿复制或导出 Wiki 标记手动导入，以免 Confluence 将 [index] 误转为链接。');
   if(missingImages.test(md))warns.push('Markdown 图片暂不自动上传：为防止图片丢失，含 Markdown 图片的文档将禁止自动发布。');
   $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=warns.join('\n');
   return res;
@@ -93,8 +94,10 @@ async function preview(){
     await requestSiteAccess(details);
     const current=SyncCore.requiredPage(await callSite(details,'read'),details.pageId);
     const wiki=Md2Confluence.convert(els.md.value);
-    let converted=null,mode=els.mode.value,method='';
+    const selection=SyncCore.selectConversionMode(els.md.value,els.mode.value);
+    let converted=null,mode=selection.mode,method='';
     const warns=[...wiki.warnings];
+    if(selection.warning)warns.push(selection.warning);
     if(mode!=='local'){
       try{
         converted=await callSite(details,'convert',{wiki:wiki.output});
@@ -225,8 +228,11 @@ $('file').addEventListener('change',()=>loadFile($('file').files?.[0]));
 $('fileEncoding').addEventListener('change',()=>{if(state.sourceFile)loadFile(state.sourceFile);});
 document.addEventListener('dragover',e=>{if(e.dataTransfer?.types.includes('Files'))e.preventDefault();});
 document.addEventListener('drop',async e=>{const f=Array.from(e.dataTransfer?.files||[]).find(x=>/\.(?:md|markdown|txt)$/i.test(x.name));if(!f)return;e.preventDefault();await loadFile(f);});
-$('copyWiki').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(Md2Confluence.convert(els.md.value).output);note('Wiki Markup 已复制，可用于 Confluence 的「插入 Wiki 标记」。','ok');}catch(e){note('复制失败：'+errorText(e),'err');}});
-$('downloadWiki').addEventListener('click',()=>{const s=Md2Confluence.convert(els.md.value).output;saveBlob(new Blob([s],{type:'text/plain;charset=utf-8'}),SyncCore.safeFilename(state.filename.replace(/\.(md|markdown|txt)$/i,''))+'.wiki.txt');note('Wiki Markup 已导出 TXT。','ok');});
+function assertSafeWikiExport(){
+  if(SyncCore.hasWikiSensitiveBrackets(els.md.value))throw new Error('PLC 方括号表达式会被 Confluence Wiki 误解析为页面链接，请使用「自动」模式生成 Storage 同步预览，勿手动导入 Wiki Markup。');
+}
+$('copyWiki').addEventListener('click',async()=>{try{assertSafeWikiExport();await navigator.clipboard.writeText(Md2Confluence.convert(els.md.value).output);note('Wiki Markup 已复制，可用于 Confluence 的「插入 Wiki 标记」。','ok');}catch(e){note('复制失败：'+errorText(e),'err');}});
+$('downloadWiki').addEventListener('click',()=>{try{assertSafeWikiExport();const s=Md2Confluence.convert(els.md.value).output;saveBlob(new Blob([s],{type:'text/plain;charset=utf-8'}),SyncCore.safeFilename(state.filename.replace(/\.(md|markdown|txt)$/i,''))+'.wiki.txt');note('Wiki Markup 已导出 TXT。','ok');}catch(e){note('导出失败：'+errorText(e),'err');}});
 (async()=>{
   try{const qs=new URLSearchParams(location.search);let initial=qs.get('target')||'';if(initial&&!/\/pages\/viewpage\.action/.test(initial))initial='';
     if(!initial){const saved=await chrome.storage.local.get('lastPage');initial=saved.lastPage||'';}
