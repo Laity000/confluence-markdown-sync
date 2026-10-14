@@ -1,5 +1,9 @@
 # Microsoft Edge Add-ons: 首次上架与 GitHub 自动更新
 
+## 统一扩展名称
+
+Chrome 和 Edge 从 v1.4.4 起统一显示 **Markdown → Confluence 同步**。Edge 首次上架请上传 v1.4.4（或更高版本）ZIP。Chrome 已安装的 Windows 更新器需要按更新指南重新安装一次更新器，以兼容新旧名称。
+
 ## 两个平台共用源码
 
 Chrome/Windows 的 GitHub Releases 更新器保留原有 ZIP 名称；每次新版本 Release 另外添加 confluence-markdown-sync-edge-vX.Y.Z.zip。两个 ZIP 内容一致，只包含运行所需文件。Edge 商店版本不负责 Chrome 更新。

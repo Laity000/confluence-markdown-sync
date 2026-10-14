@@ -62,6 +62,22 @@ Chrome 在关闭、休眠或工作台打开时无法即时更新。**Windows 计
 - 本项目是面向个人或授权企业环境的开发模式工具；**企业 Chrome 策略可能禁止开发者模式/计划任务**，这种情况下请咨询 IT，而不是绕过限制。
 - 若以后加入新的扩展运行文件，需要同时更新脚本内的 `AllowedFiles` 白名单并重新安装 Windows 更新器。
 
+## v1.4.4: display name migration (one-time updater refresh)
+
+The extension is now named **Markdown → Confluence 同步** in Chrome and Edge.
+Updater scripts installed from v1.4.1-v1.4.3 validate the historical name and
+cannot install the renamed v1.4.4 package without a one-time script refresh.
+
+1. Download the v1.4.4 **Windows updater installer ZIP** from GitHub Releases.
+2. Extract it and run `安装Windows自动更新.cmd`. Enter the **same**
+   unpacked extension folder used in Chrome (e.g. `D:\\confluence_sync_ext`).
+3. The refreshed updater recognizes both names, installs the new release, and
+   re-registers the scheduled task.
+4. In `chrome://extensions`, reload the existing extension once if the name
+   or version has not refreshed.
+
+Do NOT uninstall the extension or select a different folder.
+
 ## v1.4.1 fix: existing installation rejected as unrecognized
 
 If an older updater printed `Unrecognized extension in D:\confluence_sync_ext\manifest.json`,

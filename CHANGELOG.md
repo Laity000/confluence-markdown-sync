@@ -1,3 +1,10 @@
+## v1.4.4
+
+- Rename the Chrome and Microsoft Edge extension to **Markdown → Confluence 同步**, including the editor title and store listing draft.
+- Accept both legacy and new names in the Windows updater, maintaining the existing unpacked-extension path.
+- Include a Windows updater installer ZIP in GitHub Releases; previously installed updater scripts require a one-time refresh because they cannot recognize the renamed manifest.
+- Extend Windows name-migration regression checks.
+
 ## v1.4.3
 
 - Add dual-platform ZIP artifacts to GitHub Releases without changing Windows updater compatibility.

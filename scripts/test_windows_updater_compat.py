@@ -14,14 +14,20 @@ class UpdaterCompatTest(unittest.TestCase):
                 raw = file.read_bytes()
                 self.assertTrue(raw.isascii(), f'{file} contains non-ASCII; PowerShell 5.1 may decode it using ACP')
 
-    def test_expected_name_codepoints_match_manifest(self):
-        script = (ROOT / 'windows/Update-ConfluenceSync.ps1').read_text(encoding='ascii')
-        match = re.search(r"\$ExpectedName\s*=\s*'([^']+)'\s*\+\s*\[char\]0x([0-9a-fA-F]+)\s*\+\s*'([^']+)'((?:\s*\+\s*\[char\]0x[0-9a-fA-F]+)+)", script)
+    def _display_name(self, script, variable):
+        match = re.search(r'(?m)^\$' + re.escape(variable) + r'\s*=\s*(.+)$', script)
         self.assertIsNotNone(match)
-        name = match.group(1) + chr(int(match.group(2), 16)) + match.group(3)
-        name += ''.join(chr(int(x, 16)) for x in re.findall(r'\[char\]0x([0-9a-fA-F]+)', match.group(4)))
+        tokens = re.findall(r"'([^']*)'|\[char\]0x([0-9a-fA-F]+)", match.group(1))
+        self.assertTrue(tokens)
+        return ''.join(text if text else chr(int(codepoint, 16)) for text, codepoint in tokens)
+
+    def test_expected_name_codepoints_match_manifest_and_allow_legacy(self):
+        script = (ROOT / 'windows/Update-ConfluenceSync.ps1').read_text(encoding='ascii')
         manifest = json.loads((ROOT / 'manifest.json').read_text(encoding='utf-8'))
-        self.assertEqual(name, manifest['name'])
+        self.assertEqual(self._display_name(script, 'ExpectedName'), manifest['name'])
+        self.assertEqual(self._display_name(script, 'LegacyName'), 'Markdown → Confluence 内网同步')
+        self.assertIn('$RecognizedNames = @($ExpectedName, $LegacyName)', script)
+        self.assertIn('$RecognizedNames -cnotcontains [string]$m.name', script)
         self.assertEqual(manifest['background']['service_worker'], 'background.js')
 
     def test_scheduler_added_only_after_initial_update_succeeds(self):

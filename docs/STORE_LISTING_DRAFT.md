@@ -2,7 +2,7 @@
 
 > 草稿。正式发布前，应根据实际测试环境、产品功能与开发者联系信息核对。
 
-**商品名**：Markdown → Confluence 内网同步
+**商品名**：Markdown → Confluence 同步
 
 **简短描述**：将 Markdown 转换并同步至已登录的 Confluence Server/Data Center 页面，支持预览与版本冲突检查。
 

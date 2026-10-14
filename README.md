@@ -1,4 +1,4 @@
-# Markdown → Confluence 自动同步（Windows / Chrome / Edge）
+# Markdown → Confluence 同步（Windows / Chrome / Edge）
 
 ## 设计原则
 
@@ -124,3 +124,8 @@ Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `
 ## Microsoft Edge Add-ons 自动发布
 
 每次新版本的 GitHub Release 同时生成 Chrome/Windows 和 Microsoft Edge ZIP。首次需在微软 Partner Center 手动上架；完成后配置 GitHub Actions 的 EDGE_PRODUCT_ID、EDGE_CLIENT_ID、EDGE_API_KEY，即可自动将后续版本提交 Edge 审核。详见 [Edge 发布指南](docs/EDGE_ADDONS.md)。
+
+
+## v1.4.4：Chrome / Edge 统一名称
+
+浏览器扩展正式名称统一为 **Markdown → Confluence 同步**。旧版 v1.4.1～v1.4.3 Windows 更新器严格检查旧名称；Chrome 用户需从 v1.4.4 GitHub Release 下载 Windows 更新器安装包、仍选择原有扩展目录重装**更新器**一次（不卸载扩展），完成后后续自动更新照常工作。Edge 首次上架直接使用 v1.4.4 ZIP。

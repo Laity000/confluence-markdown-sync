@@ -62,8 +62,16 @@ jobs:
           python3 scripts/package_extension.py --version "$TAG" --output "dist/$edge"
           cmp "dist/$file" "dist/$edge"
           python3 scripts/publish_edge_addon.py --package "dist/$edge" --dry-run
+          updater="confluence-sync-windows-updater-v${VERSION}.zip"
+          python3 -c 'import sys,zipfile; z=zipfile.ZipFile(sys.argv[1],"w",compression=zipfile.ZIP_DEFLATED); [z.write(p) for p in sys.argv[2:]]; z.close()' \
+            "dist/$updater" \
+            "安装Windows自动更新.cmd" \
+            "windows/Install-ConfluenceSyncUpdater.ps1" \
+            "windows/Update-ConfluenceSync.ps1" \
+            "windows/Uninstall-ConfluenceSyncUpdater.ps1" \
+            "docs/WINDOWS_AUTO_UPDATE.md"
           cd dist
-          sha256sum "$file" "$edge" > SHA256SUMS.txt
+          sha256sum "$file" "$edge" "$updater" > SHA256SUMS.txt
           sha256sum -c SHA256SUMS.txt
       - name: Create release (new versions only)
         if: steps.check.outputs.exists == 'false'
@@ -76,6 +84,7 @@ jobs:
           gh release create "$TAG" \
             "dist/confluence-markdown-sync-extension-v${VERSION}.zip" \
             "dist/confluence-markdown-sync-edge-v${VERSION}.zip" \
+            "dist/confluence-sync-windows-updater-v${VERSION}.zip" \
             "dist/SHA256SUMS.txt" \
             --target "$GITHUB_SHA" --title "Confluence Markdown Sync $TAG" \
             --notes "Chrome/Edge unpacked extension release. Windows updater checks SHA256 before applying. Install once using windows/Install-ConfluenceSyncUpdater.ps1."
