@@ -85,7 +85,7 @@ async function onConfluencePage(req){
         for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
         const form=new FormData();
         form.append('file',new Blob([bytes],{type:attachment.mimeType||'application/octet-stream'}),attachment.filename);
-        await call(path+'/child/attachment',{method:'POST',headers:{'X-Atlassian-Token':'no-check'},body:form});
+        await call(path+'/child/attachment',{method:'POST',headers:{'X-Atlassian-Token':'nocheck'},body:form});
         uploaded++;
       }
     }catch(e){
