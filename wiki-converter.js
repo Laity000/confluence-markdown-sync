@@ -203,13 +203,7 @@
     }
     return rows.length >= 2 ? { header, rows, end } : null;
   }
-  // Recognize a table enclosed by standalone horizontal rules:
-  // ---
-  // LLDB command                         Result
-  // ---
-  // `target variable ...`                Failed
-  // Blank lines between data rows are tolerated, and leading &#x20; entities
-  // are removed by splitFixedWidthCells above.
+  // Recognize a table enclosed by standalone horizontal rules.
   // Recognize a table enclosed by standalone horizontal rules.
   // Blank lines between data rows are tolerated.
   function fixedWidthRuleTable(lines, i) {
