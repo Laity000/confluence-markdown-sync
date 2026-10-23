@@ -40,3 +40,8 @@ test('备份包含完整 Storage 正文及元数据',()=>{
   const d=sync.parsePageUrl('http://a/pages/viewpage.action?pageId=12'),p={id:'12',title:'ABC',version:2,storage:'<p>old</p>'};
   const x=sync.backupRecord(d,p);assert.equal(x.body.storage.value,p.storage);assert.equal(x.pageId,'12');
 });
+
+test('本地 Storage 转换器保留可访问的外部图片引用',()=>{
+  const x=storage.render('![diagram](https://example.com/a.png)').value;
+  assert.match(x,/<ac:image ac:alt="diagram"><ri:url ri:value="https:\/\/example\.com\/a\.png" \/><\/ac:image>/);
+});
