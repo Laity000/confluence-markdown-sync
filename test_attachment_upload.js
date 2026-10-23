@@ -18,7 +18,7 @@ const fetchStub=async(url,opts={})=>{
   }
   if(url.endsWith('/rest/api/content/123456/child/attachment')&&method==='POST'){
     uploadCount++;
-    assert.equal(opts.headers['X-Atlassian-Token'],'no-check');
+    assert.equal(opts.headers['X-Atlassian-Token'],'nocheck');
     assert.ok(opts.body instanceof FormData);
     const uploaded=opts.body.get('file');
     assert.equal(uploaded.name,'readme.pdf');
