@@ -61,7 +61,10 @@
   function isTable(lines,i){return i+1<lines.length&&lines[i].includes('|')&&cells(lines[i+1]).every(x=>/^:?-{3,}:?$/.test(x))&&cells(lines[i]).length===cells(lines[i+1]).length;}
   // Recognize generated text tables that use a dashed column ruler and
   // space-aligned rows, with or without a header row.
-  function splitFixedWidthCells(line){return String(line).trim().split(/[ \t]{2,}/).map(x=>x.trim());}
+  function splitFixedWidthCells(line){
+    const cleaned=String(line).replace(/^\s*&#(?:x0*20|0*32);[ \t]*/i,'').trim();
+    return cleaned.split(/[ \t]{2,}/).map(x=>x.trim());
+  }
   function fixedWidthRulerColumns(line){
     if(!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(line))return 0;
     return [...String(line).matchAll(/-{3,}/g)].length;
@@ -90,6 +93,36 @@
     }
     return rows.length>=2?{header,rows,end}:null;
   }
+  function isStandaloneHorizontalRule(line){return /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line);}
+  function fixedWidthRuleTable(lines,i){
+    if(i>=lines.length||!isStandaloneHorizontalRule(lines[i]))return null;
+    const skipBlanks=start=>{let n=start;while(n<lines.length&&!lines[n].trim())n++;return n;};
+    const headerIndex=skipBlanks(i+1);
+    if(headerIndex>=lines.length)return null;
+    const header=splitFixedWidthCells(lines[headerIndex]);
+    if(header.length<2)return null;
+    const rulerIndex=skipBlanks(headerIndex+1);
+    if(rulerIndex>=lines.length||!isStandaloneHorizontalRule(lines[rulerIndex]))return null;
+    const dataStart=skipBlanks(rulerIndex+1);
+    const rows=[];let cursor=dataStart,lastRowEnd=dataStart;
+    while(cursor<lines.length){
+      if(!lines[cursor].trim()){
+        const next=skipBlanks(cursor);
+        if(next>=lines.length||isStandaloneHorizontalRule(lines[next])||fenceStart(lines[next])||
+           /^ {0,3}#{1,6}\s+/.test(lines[next])||listItem(lines[next])||
+           /^\s*>/.test(lines[next])||lines[next].includes('|'))break;
+        if(splitFixedWidthCells(lines[next]).length!==header.length)break;
+        cursor=next;continue;
+      }
+      const line=lines[cursor];
+      if(isStandaloneHorizontalRule(line)||fenceStart(line)||/^ {0,3}#{1,6}\s+/.test(line)||
+         listItem(line)||/^\s*>/.test(line)||line.includes('|'))break;
+      const cells=splitFixedWidthCells(line);
+      if(cells.length!==header.length)break;
+      rows.push(cells);cursor++;lastRowEnd=cursor;
+    }
+    return rows.length>=2?{header,rows,end:lastRowEnd}:null;
+  }
   function listItem(line){let m=line.match(/^(\s{0,24})([-+*]|\d+[.)])\s+(.*)$/);return m?{indent:m[1].length,type:/\d/.test(m[2][0])?'ol':'ul',text:m[3]}:null;}
   function fenceStart(line){let m=line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);return m?{symbol:m[1][0],count:m[1].length,lang:m[2].trim().split(/\s+/)[0]||'none'}:null;}
   function code(body,language,warnings){
@@ -114,6 +147,13 @@
       if(head){closeList();out.push('<h'+head[1].length+'>'+inline(head[2],warnings)+'</h'+head[1].length+'>');i++;continue;}
       if(line.trim()&&i+1<lines.length&&/^ {0,3}(?:=+|-{3,})\s*$/.test(lines[i+1])&&!listItem(line)){
         closeList();let h=lines[i+1].trim()[0]==='='?1:2;out.push('<h'+h+'>'+inline(line.trim(),warnings)+'</h'+h+'>');i+=2;continue;
+      }
+      const ruledFixedTable=fixedWidthRuleTable(lines,i);
+      if(ruledFixedTable){
+        closeList();
+        let table='<table><tbody><tr>'+ruledFixedTable.header.map(v=>'<th>'+inline(v,warnings)+'</th>').join('')+'</tr>';
+        for(const row of ruledFixedTable.rows)table+='<tr>'+row.map(v=>'<td>'+inline(v,warnings)+'</td>').join('')+'</tr>';
+        out.push(table+'</tbody></table>');i=ruledFixedTable.end;continue;
       }
       const fixedTable=fixedWidthTable(lines,i);
       if(fixedTable){
