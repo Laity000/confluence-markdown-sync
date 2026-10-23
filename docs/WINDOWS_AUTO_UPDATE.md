@@ -18,7 +18,7 @@
 
    如果你已经用 `D:\Tools\ConfluenceSync` 加载了插件，**务必指向同一个含 `manifest.json` 的扩展根目录**；不要指向它的上级目录。
 
-3. 脚本会下载 GitHub 最新 Release，验证 SHA256，自动更新扩展目录，并为当前用户创建一个“登录时 + 每小时”的计划任务 `ConfluenceMarkdownSync-AutoUpdate`。无需管理员权限，企业安全策略可能阻止计划任务创建。
+3. 安装脚本会先把启动器 `Update-ConfluenceSyncBootstrap.ps1` 和核心更新器安装到 `%LOCALAPPDATA%\ConfluenceMarkdownSync\updater`，验证最新 Release 后更新扩展目录，并为当前用户创建一个“登录时 + 每小时”的计划任务 `ConfluenceMarkdownSync-AutoUpdate`。无需管理员权限，企业安全策略可能阻止计划任务创建。
 4. 如果之前没有加载插件：进入 `chrome://extensions`，打开开发者模式，点击“加载已解压的扩展程序”，**选择 `D:\Tools\ConfluenceSync`**，完成一次安装。如果原来加载的是 v1.3：到同一页面**点一次重新加载**。
 5. 后续发布 v1.4.1、v1.5.0 等版本，只要 GitHub Actions 构建并发布了 Release，任务会自动下载；后台服务发现 `update-status.json` 新版本标记后，若没有打开编辑器，自动重载。
 
@@ -26,9 +26,12 @@
 
 ```text
 GitHub main: manifest.json 版本提高
-  → GitHub Actions: 测试、打 ZIP、SHA256SUMS.txt、发布正式 Release
-  → Windows Scheduled Task（登录时+每小时）
-  → HTTPS 下载、SHA256 核验、ZIP 允许列表校验、版本核对
+  → GitHub Actions: 测试、打包扩展和 Windows 更新器、生成 SHA256SUMS.txt、发布正式 Release
+  → Windows Scheduled Task（登录时+每小时）启动稳定的 Bootstrapper
+  → Bootstrapper 比较本地核心更新器版本与最新 Release
+  → 若更新器过期：下载更新器 ZIP、校验 SHA256 与文件白名单、更新核心脚本
+  → Bootstrapper 启动核心更新器
+  → 核心更新器下载扩展 ZIP、校验 SHA256 与扩展文件白名单
   → staging 校验通过，备份本地旧文件，复制新版
   → 最后写 update-status.json（version、hash、时间）
   → Chrome service worker 每 2 分钟读取扩展自身的标记
@@ -61,6 +64,32 @@ Chrome 在关闭、休眠或工作台打开时无法即时更新。**Windows 计
 - Windows 每小时检查；Chrome 扩展每 2 分钟检查本地标记，因此不是实时毫秒更新。用户开启编辑器时会推迟热重载，保护未保存 Markdown 和正在进行的同步。
 - 本项目是面向个人或授权企业环境的开发模式工具；**企业 Chrome 策略可能禁止开发者模式/计划任务**，这种情况下请咨询 IT，而不是绕过限制。
 - 若以后加入新的扩展运行文件，需要同时更新脚本内的 `AllowedFiles` 白名单并重新安装 Windows 更新器。
+
+## v1.4.6: updater self-update (one-time migration required)
+
+The v1.4.6 updater package adds a stable bootstrapper. The scheduled task now
+runs the bootstrapper, which checks the latest stable GitHub Release, verifies
+the updater ZIP with SHA-256, validates its exact file allowlist, updates the
+core updater script when its stamped version is old, and then runs the core
+updater to update the extension.
+
+Installations from v1.4.4 or v1.4.5 still point the scheduled task directly at
+the old core script, so they cannot acquire this bootstrapper automatically.
+Refresh the updater once:
+
+1. Stop the current scheduled task (this does not uninstall the extension):
+   `Stop-ScheduledTask -TaskName 'ConfluenceMarkdownSync-AutoUpdate' -ErrorAction SilentlyContinue`
+2. Download the latest [Windows updater ZIP from GitHub Releases](https://github.com/Laity000/confluence-markdown-sync/releases/latest).
+3. Extract it and run `安装Windows自动更新.cmd`.
+4. Enter the **same** extension folder already loaded in Chrome, for example
+   `D:\confluence_sync_ext`. Do not uninstall the extension or change its folder.
+5. The installer refreshes the scripts and scheduled-task action. After this
+   one-time migration, core updater releases are installed automatically; no
+   repeated manual updater downloads are required.
+
+The bootstrapper is intentionally small and stable. If its own bootstrap
+protocol ever needs to change, rerun the installer from a newer updater ZIP.
+The core updater it launches is automatically refreshed from later releases.
 
 ## v1.4.4: display name migration (one-time updater refresh)
 
