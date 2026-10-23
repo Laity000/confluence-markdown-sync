@@ -62,8 +62,8 @@
   // Recognize generated text tables that use a dashed column ruler and
   // space-aligned rows, with or without a header row.
   function splitFixedWidthCells(line){
-    const cleaned=String(line).replace(/^\\s*&#(?:x0*20|0*32);[ \\t]*/i,'').trim();
-    return cleaned.split(/[ \\t]{2,}/).map(x=>x.trim());
+    const cleaned=String(line).replace(/^\s*&#(?:x0*20|0*32);[ \t]*/i,'').trim();
+    return cleaned.split(/[ \t]{2,}/).map(x=>x.trim());
   }
   function fixedWidthRulerColumns(line){
     if(!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(line))return 0;
@@ -93,7 +93,7 @@
     }
     return rows.length>=2?{header,rows,end}:null;
   }
-  function isStandaloneHorizontalRule(line){return /^\\s*(?:-{3,}|\\*{3,}|_{3,})\\s*$/.test(line);}
+  function isStandaloneHorizontalRule(line){return /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line);}
   function fixedWidthRuleTable(lines,i){
     if(i>=lines.length||!isStandaloneHorizontalRule(lines[i]))return null;
     const skipBlanks=start=>{let n=start;while(n<lines.length&&!lines[n].trim())n++;return n;};
@@ -109,14 +109,14 @@
       if(!lines[cursor].trim()){
         const next=skipBlanks(cursor);
         if(next>=lines.length||isStandaloneHorizontalRule(lines[next])||fenceStart(lines[next])||
-           /^ {0,3}#{1,6}\\s+/.test(lines[next])||listItem(lines[next])||
-           /^\\s*>/.test(lines[next])||lines[next].includes('|'))break;
+           /^ {0,3}#{1,6}\s+/.test(lines[next])||listItem(lines[next])||
+           /^\s*>/.test(lines[next])||lines[next].includes('|'))break;
         if(splitFixedWidthCells(lines[next]).length!==header.length)break;
         cursor=next;continue;
       }
       const line=lines[cursor];
-      if(isStandaloneHorizontalRule(line)||fenceStart(line)||/^ {0,3}#{1,6}\\s+/.test(line)||
-         listItem(line)||/^\\s*>/.test(line)||line.includes('|'))break;
+      if(isStandaloneHorizontalRule(line)||fenceStart(line)||/^ {0,3}#{1,6}\s+/.test(line)||
+         listItem(line)||/^\s*>/.test(line)||line.includes('|'))break;
       const cells=splitFixedWidthCells(line);
       if(cells.length!==header.length)break;
       rows.push(cells);cursor++;lastRowEnd=cursor;
