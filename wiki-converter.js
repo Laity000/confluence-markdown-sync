@@ -161,21 +161,45 @@
   function splitFixedWidthCells(line) {
     return String(line).trim().split(/[ \t]{2,}/).map(cell => cell.trim());
   }
+  function fixedWidthRulerColumns(line) {
+    if (!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(line)) return 0;
+    return [...String(line).matchAll(/-{3,}/g)].length;
+  }
+  // Accept both ruler-first fixed-width tables and generated tables with a
+  // header row followed by a dashed column ruler. Blank lines around the
+  // header/ruler and immediately before the first data row are tolerated.
   function fixedWidthTable(lines, i) {
-    if (i + 2 >= lines.length || !/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(lines[i])) return null;
-    const columns = [...lines[i].matchAll(/-{3,}/g)].length;
+    if (i >= lines.length) return null;
+    let header = null, rulerIndex = i, columns = fixedWidthRulerColumns(lines[i]);
+    if (!columns) {
+      header = splitFixedWidthCells(lines[i]);
+      rulerIndex = i + 1;
+      let skipped = 0;
+      while (rulerIndex < lines.length && !lines[rulerIndex].trim() && skipped < 2) {
+        rulerIndex++;
+        skipped++;
+      }
+      columns = rulerIndex < lines.length ? fixedWidthRulerColumns(lines[rulerIndex]) : 0;
+      if (!columns || header.length !== columns) return null;
+    }
     if (columns < 2) return null;
+    let dataStart = rulerIndex + 1, skippedAfterRuler = 0;
+    while (dataStart < lines.length && !lines[dataStart].trim() && skippedAfterRuler < 2) {
+      dataStart++;
+      skippedAfterRuler++;
+    }
     const rows = [];
-    let end = i + 1;
+    let end = dataStart;
     while (end < lines.length && lines[end].trim()) {
       const line = lines[end];
-      if (isFenceStart(line) || /^ {0,3}#{1,6}\s+/.test(line) || listItem(line) || /^\s*>/.test(line) || line.includes('|')) break;
+      if (isFenceStart(line) || /^ {0,3}#{1,6}\s+/.test(line) || listItem(line) ||
+          /^\s*>/.test(line) || line.includes('|')) break;
       const cells = splitFixedWidthCells(line);
       if (cells.length !== columns) break;
       rows.push(cells);
       end++;
     }
-    return rows.length >= 2 ? { rows, end } : null;
+    return rows.length >= 2 ? { header, rows, end } : null;
   }
   function isStartBlock(lines, i) {
     if (i >= lines.length) return true;
@@ -227,6 +251,7 @@
       if (fixedTable) {
         resetList(); state.stats.tables++;
         const renderCell = cell => inline(cell, state).replace(/\n/g, ' ');
+        if (fixedTable.header) out.push('||' + fixedTable.header.map(renderCell).join('||') + '||');
         for (const row of fixedTable.rows) out.push('|' + row.map(renderCell).join('|') + '|');
         i = fixedTable.end;
         continue;

@@ -60,13 +60,27 @@
   }
   function isTable(lines,i){return i+1<lines.length&&lines[i].includes('|')&&cells(lines[i+1]).every(x=>/^:?-{3,}:?$/.test(x))&&cells(lines[i]).length===cells(lines[i+1]).length;}
   // Recognize generated text tables that use a dashed column ruler and
-  // multiple spaces between cell values rather than Markdown pipe syntax.
+  // space-aligned rows, with or without a header row.
   function splitFixedWidthCells(line){return String(line).trim().split(/[ \t]{2,}/).map(x=>x.trim());}
+  function fixedWidthRulerColumns(line){
+    if(!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(line))return 0;
+    return [...String(line).matchAll(/-{3,}/g)].length;
+  }
   function fixedWidthTable(lines,i){
-    if(i+2>=lines.length||!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(lines[i]))return null;
-    const columns=[...lines[i].matchAll(/-{3,}/g)].length;
+    if(i>=lines.length)return null;
+    let header=null,rulerIndex=i,columns=fixedWidthRulerColumns(lines[i]);
+    if(!columns){
+      header=splitFixedWidthCells(lines[i]);
+      rulerIndex=i+1;
+      let skipped=0;
+      while(rulerIndex<lines.length&&!lines[rulerIndex].trim()&&skipped<2){rulerIndex++;skipped++;}
+      columns=rulerIndex<lines.length?fixedWidthRulerColumns(lines[rulerIndex]):0;
+      if(!columns||header.length!==columns)return null;
+    }
     if(columns<2)return null;
-    const rows=[];let end=i+1;
+    let dataStart=rulerIndex+1,skippedAfterRuler=0;
+    while(dataStart<lines.length&&!lines[dataStart].trim()&&skippedAfterRuler<2){dataStart++;skippedAfterRuler++;}
+    const rows=[];let end=dataStart;
     while(end<lines.length&&lines[end].trim()){
       const line=lines[end];
       if(fenceStart(line)||/^ {0,3}#{1,6}\s+/.test(line)||listItem(line)||/^\s*>/.test(line)||line.includes('|'))break;
@@ -74,7 +88,7 @@
       if(row.length!==columns)break;
       rows.push(row);end++;
     }
-    return rows.length>=2?{rows,end}:null;
+    return rows.length>=2?{header,rows,end}:null;
   }
   function listItem(line){let m=line.match(/^(\s{0,24})([-+*]|\d+[.)])\s+(.*)$/);return m?{indent:m[1].length,type:/\d/.test(m[2][0])?'ol':'ul',text:m[3]}:null;}
   function fenceStart(line){let m=line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);return m?{symbol:m[1][0],count:m[1].length,lang:m[2].trim().split(/\s+/)[0]||'none'}:null;}
@@ -104,6 +118,7 @@
       const fixedTable=fixedWidthTable(lines,i);
       if(fixedTable){
         closeList();let table='<table><tbody>';
+        if(fixedTable.header)table+='<tr>'+fixedTable.header.map(v=>'<th>'+inline(v,warnings)+'</th>').join('')+'</tr>';
         for(const row of fixedTable.rows)table+='<tr>'+row.map(v=>'<td>'+inline(v,warnings)+'</td>').join('')+'</tr>';
         out.push(table+'</tbody></table>');i=fixedTable.end;continue;
       }

@@ -1,3 +1,10 @@
+## v1.4.14
+
+- Recognize fixed-width tables with a header row, dashed column ruler, and blank lines around the ruler.
+- Convert the header into real Confluence table header cells instead of plain text.
+- Preserve existing support for fixed-width tables without headers and ordinary horizontal rules.
+- Add regression coverage for the reported two-memory-region table format in both Wiki Markup and Storage XHTML conversion.
+
 ## v1.4.13
 
 - Before uploading local attachments, list the page's existing attachments and compare file bytes.
