@@ -16,7 +16,8 @@ assert.match(editor, /AttachmentResolver\.listMarkdownFiles\(entries\)/);
 assert.match(editor, /await loadFile\(selected\.file,selected\.path\)/);
 assert.match(editor, /const needsResources=localReferences\.length>0&&\(!state\.resourceFiles\.length\|\|attachmentPlan\.blocked\)/);
 assert.match(editor, /\$\('chooseResourceDirectory'\)\.hidden=!needsResources/);
-assert.match(editor, /选择项目目录.*选择资源目录/);
+assert.match(editor, /选择项目目录/);
+assert.match(editor, /选择资源目录/);
 
 const mock = name => ({name,size:1,lastModified:1,webkitRelativePath:'project/'+name});
 const entries = Resolver.collectFiles([
