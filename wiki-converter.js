@@ -160,8 +160,8 @@
   // the same number of columns, so ordinary horizontal rules stay horizontal.
   function splitFixedWidthCells(line) {
     // Some generated Markdown uses an HTML space entity to indent cells.
-    const cleaned = String(line).replace(/^\\s*&#(?:x0*20|0*32);[ \\t]*/i, '').trim();
-    return cleaned.split(/[ \\t]{2,}/).map(cell => cell.trim());
+    const cleaned = String(line).replace(/^\s*&#(?:x0*20|0*32);[ \t]*/i, '').trim();
+    return cleaned.split(/[ \t]{2,}/).map(cell => cell.trim());
   }
   function fixedWidthRulerColumns(line) {
     if (!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(line)) return 0;
@@ -210,6 +210,8 @@
   // `target variable ...`                Failed
   // Blank lines between data rows are tolerated, and leading &#x20; entities
   // are removed by splitFixedWidthCells above.
+  // Recognize a table enclosed by standalone horizontal rules.
+  // Blank lines between data rows are tolerated.
   function fixedWidthRuleTable(lines, i) {
     if (i >= lines.length || !isHorizontal(lines[i])) return null;
     const skipBlanks = start => {
@@ -230,16 +232,16 @@
       if (!lines[cursor].trim()) {
         const next = skipBlanks(cursor);
         if (next >= lines.length || isHorizontal(lines[next]) ||
-            isFenceStart(lines[next]) || /^ {0,3}#{1,6}\\s+/.test(lines[next]) ||
-            listItem(lines[next]) || /^\\s*>/.test(lines[next]) || lines[next].includes('|')) break;
+            isFenceStart(lines[next]) || /^ {0,3}#{1,6}\s+/.test(lines[next]) ||
+            listItem(lines[next]) || /^\s*>/.test(lines[next]) || lines[next].includes('|')) break;
         if (splitFixedWidthCells(lines[next]).length !== header.length) break;
         cursor = next;
         continue;
       }
       const line = lines[cursor];
       if (isHorizontal(line) || isFenceStart(line) ||
-          /^ {0,3}#{1,6}\\s+/.test(line) || listItem(line) ||
-          /^\\s*>/.test(line) || line.includes('|')) break;
+          /^ {0,3}#{1,6}\s+/.test(line) || listItem(line) ||
+          /^\s*>/.test(line) || line.includes('|')) break;
       const cells = splitFixedWidthCells(line);
       if (cells.length !== header.length) break;
       rows.push(cells);
@@ -297,7 +299,7 @@
       const ruledFixedTable = fixedWidthRuleTable(lines, i);
       if (ruledFixedTable) {
         resetList(); state.stats.tables++;
-        const renderCell = cell => inline(cell, state).replace(/\\n/g, ' ');
+        const renderCell = cell => inline(cell, state).replace(/\n/g, ' ');
         out.push('||' + ruledFixedTable.header.map(renderCell).join('||') + '||');
         for (const row of ruledFixedTable.rows) out.push('|' + row.map(renderCell).join('|') + '|');
         i = ruledFixedTable.end;
