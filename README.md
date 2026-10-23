@@ -129,3 +129,10 @@ Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `
 ## v1.4.4：Chrome / Edge 统一名称
 
 浏览器扩展正式名称统一为 **Markdown → Confluence 同步**。旧版 v1.4.1～v1.4.3 Windows 更新器严格检查旧名称；Chrome 用户需从 v1.4.4 GitHub Release 下载 Windows 更新器安装包、仍选择原有扩展目录重装**更新器**一次（不卸载扩展），完成后后续自动更新照常工作。Edge 首次上架直接使用 v1.4.4 ZIP。
+
+## v1.4.5：修复水平分割线与 YAML Front Matter 转换
+
+- 将独立成行的 Markdown `---` 转换为 Confluence Wiki Markup 水平分割线 `----`。
+- 识别文件开头格式正确且包含 YAML 字段的 Front Matter，并在转换正文前移除元数据区。
+- 保留 Setext 二级标题、表格分隔行以及围栏代码块中的 `---` 原有语义。
+- 增加对应回归测试，避免分割线与元数据边界相互误判。
