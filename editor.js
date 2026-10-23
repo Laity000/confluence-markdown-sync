@@ -18,7 +18,7 @@ function refreshMarkdown(){
   invalidate();let md=els.md.value;
   const attachmentPlan=AttachmentResolver.prepare(md,state.resourceFiles,state.sourceRelativePath);
   const res=Md2Confluence.convert(attachmentPlan.markdown);
-  $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项`;
+  $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项 · ${attachmentPlan.references.length} 个本地文件引用`;
   let warns=[...res.warnings,...attachmentPlan.warnings];
   if(SyncCore.hasWikiSensitiveBrackets(md))warns.push('包含 PLC 方括号表达式：自动同步将直接使用 Storage XHTML；请勿复制或导出 Wiki 标记手动导入，以免 Confluence 将 [index] 误转为链接。');
   $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=[...new Set(warns)].join('\n');
