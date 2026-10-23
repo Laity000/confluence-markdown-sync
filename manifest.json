@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Markdown → Confluence 同步",
-  "version": "1.4.13",
+  "version": "1.4.14",
   "description": "在已登录的 Confluence 页面会话中预览并一键同步 Markdown，检查版本冲突；备份可手动下载。",
   "action": {
     "default_title": "打开 Markdown → Confluence 同步工具"
