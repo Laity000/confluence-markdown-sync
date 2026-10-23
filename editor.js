@@ -62,7 +62,7 @@ async function onConfluencePage(req){
       return value;
     }
     async function listAttachments(){
-      const all=[];let url=path+'/child/attachment?limit=200&expand=version,metadata,extensions';let pages=0;
+      const all=[];let url=path+'/child/attachment?limit=200';let pages=0;
       while(url&&pages<50){
         const page=await call(url);
         if(!Array.isArray(page.results))throw new Error('Confluence 附件列表响应格式不正确，缺少 results 数组。');
@@ -71,7 +71,9 @@ async function onConfluencePage(req){
         if(next){
           const nextUrl=new URL(next,window.location.origin);
           if(nextUrl.origin!==window.location.origin)throw new Error('附件分页链接跳转到了不同站点，已停止同步。');
-          url=nextUrl.pathname+nextUrl.search;
+          let nextPath=nextUrl.pathname;
+          if(req.prefix&&nextPath.startsWith('/rest/')&&nextPath!==req.prefix&&!nextPath.startsWith(req.prefix+'/'))nextPath=req.prefix+nextPath;
+          url=nextPath+nextUrl.search;
         }else url='';
       }
       if(url)throw new Error('附件列表分页超过安全上限，已停止同步。');
