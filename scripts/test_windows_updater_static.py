@@ -29,6 +29,10 @@ class WindowsUpdaterBootstrapTest(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/github-release.yml").read_text(encoding="utf-8")
         self.assertIn("scripts/package_windows_updater.py --version", workflow)
 
+    def test_extension_allowlist_includes_attachment_resolver(self):
+        source = (ROOT / "windows/Update-ConfluenceSync.ps1").read_text(encoding="ascii")
+        self.assertIn("'attachment-resolver.js'", source)
+
 
 if __name__ == "__main__":
     unittest.main()
