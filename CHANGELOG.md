@@ -1,3 +1,11 @@
+## v1.4.13
+
+- Before uploading local attachments, list the page's existing attachments and compare file bytes.
+- Skip attachments whose existing content is identical, preventing repeated uploads when only Markdown text changes.
+- Update existing attachments through their attachment-data endpoint when the local file content actually changed; create only missing attachments.
+- Return page-context API errors explicitly so the UI can show the underlying Confluence status/message instead of a generic missing-result warning.
+- Add regression tests for unchanged, changed, new and failed attachment syncs.
+
 ## v1.4.12
 
 - If the update response is missing or ambiguous, read the Confluence page back before reporting failure.
