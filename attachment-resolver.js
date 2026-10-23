@@ -51,6 +51,12 @@
     let target = decodeTarget(raw).replace(/[?#].*$/, '');
     if (/^[a-z]:[\\/]/i.test(target) || /^file:/i.test(target) || target.startsWith('/')) return null;
     const base = basename(sourceRelativePath) ? String(sourceRelativePath).replace(/\\/g, '/').split('/').slice(0, -1).join('/') : '';
+    if (!base) {
+      target = target.replace(/^(?:\.\/)+/, '');
+      // Pasted Markdown has no known source directory. Treat leading parent hops as a path hint,
+      // then require a unique matching resource path/basename in the selected files.
+      target = target.replace(/^(?:\.\.\/)+/, '');
+    }
     return normalizePath(target, base);
   }
   function collectFiles(fileList) {
