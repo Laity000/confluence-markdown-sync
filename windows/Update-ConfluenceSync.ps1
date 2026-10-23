@@ -1,3 +1,4 @@
+# UpdaterVersion: 0.0.0
 # Windows PowerShell 5.1+, current-user updater. Never executes code from ZIP.
 # Install-ConfluenceSyncUpdater.ps1 writes config.json alongside this script.
 [CmdletBinding()]
