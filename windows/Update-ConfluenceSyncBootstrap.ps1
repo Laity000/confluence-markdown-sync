@@ -9,9 +9,10 @@ $StateDir = $PSScriptRoot
 $ConfigFile = Join-Path $StateDir 'config.json'
 $UpdaterPath = Join-Path $StateDir 'Update-ConfluenceSync.ps1'
 $LogFile = Join-Path $StateDir 'updater.log'
+$InstallerCmd = ([char]0x5B89) + ([char]0x88C5) + 'Windows' + ([char]0x81EA) + ([char]0x52A8) + ([char]0x66F4) + ([char]0x65B0) + '.cmd'
 $ExpectedEntries = @(
     'updater-version.txt',
-    '安装Windows自动更新.cmd',
+    $InstallerCmd,
     'windows/Install-ConfluenceSyncUpdater.ps1',
     'windows/Update-ConfluenceSync.ps1',
     'windows/Update-ConfluenceSyncBootstrap.ps1',
