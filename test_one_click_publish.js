@@ -14,16 +14,17 @@ assert.doesNotMatch(source,/\bconfirm\s*\(/);
 assert.doesNotMatch(source,/\baccept\b/);
 let backupCalls=0, confirmCalls=0, requests=0, busy=false, clears=0;
 let notification='';
-const preview={details:{pageId:'123456'},current:{id:'123456',title:'测试页面',version:3,storage:'<p>old</p>'},storage:'<p>new</p>',markdown:'# New',noChange:false,blocked:false};
+const preview={details:{pageId:'123456'},current:{id:'123456',title:'测试页面',version:3,storage:'<p>old</p>'},storage:'<p>new</p>',markdown:'# New',attachments:[],noChange:false,blocked:false};
 const state={preview,working:false};
 const els={md:{value:'# New'}};
 let serverResult={updated:true,version:4};
 const context={
   state,els,
+  serializeAttachments:async uploads=>uploads||[],
   canPublish:()=>!!state.preview && !state.preview.noChange && !state.preview.blocked,
   setBusy:flag=>{busy=flag;state.working=flag;},
   note:msg=>{notification=msg;},
-  callSite:async(_details,op,data)=>{requests++;assert.equal(op,'update');assert.equal(data.snapshot.version,3);return serverResult;},
+  callSite:async(_details,op,data)=>{requests++;assert.equal(op,'update');assert.equal(data.snapshot.version,3);assert.deepEqual(data.attachments,[]);return serverResult;},
   invalidate:()=>{clears++;state.preview=null;},
   errorText:err=>String(err),
   downloadBackup:()=>{backupCalls++;throw new Error('should not call backup');},

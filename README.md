@@ -26,7 +26,7 @@
 
 1. 在同一个浏览器中，用公司账号登录内网 Confluence，打开待更新的页面。
 2. 单击扩展图标；页面 URL 支持自动填入，也可粘贴完整页面链接。
-3. 选择 Markdown 文件，或直接粘贴文本。支持 UTF-8 和 GBK/GB18030 文件编码。
+3. 选择 Markdown 文件，或直接粘贴文本。支持 UTF-8 和 GBK/GB18030 文件编码。若正文引用本地图片或文件，再点击「选择附件文件」选择多个文件，或点击「选择资源目录」选择包含 Markdown 与资源的文件夹；从目录中选中的文件会按相对路径匹配。
 4. 点击「连接并生成同步预览」。首次会弹出浏览器授权，请**确认所请求的站点就是你的内网 Confluence**，仅授权该域名。
 5. 核对页面标题、pageId、版本、Storage 转换方法、差异、源码。初次建议在测试页验证标题、代码块、表格。
 6. 查看预览后直接点击「同步更新页面」，无须勾选、弹窗确认或自动下载备份。此操作**整页替换**现有正文，请务必核对预览。
@@ -43,7 +43,7 @@
 
 - 默认优先复用此前的 JavaScript Markdown → Wiki Markup 转换模块，再使用官方 REST `/rest/api/contentbody/convert/storage` 转为 Confluence Storage XHTML，力求和手动「插入 Wiki 标记」一致。
 - 如果这个 API 被禁用或版本不支持，默认退回本地基础 Storage 转换。页面会明确标识兼容模式，并提示用户检查代码块、表格等内容；可在下拉框选择「仅服务器转换」以禁止回退。
-- 复杂嵌套 Markdown、LaTeX、Mermaid、插件专用宏、HTML 和本地图片附件尚不支持完整保真；含 Markdown 图片时禁止自动发布，以免丢失图片。
+- 复杂嵌套 Markdown、LaTeX、Mermaid、插件专用宏和原生 HTML 尚不支持完整保真。本地相对路径图片/附件可在选择资源文件或资源目录后，于同步时上传为当前页面附件；图片支持 PNG/JPG/JPEG/GIF/WEBP/BMP。单文件上限 10 MiB，本次附件总量上限 20 MiB。预览阶段不上传附件；本地文件缺失、路径歧义或超出限制时会阻止发布。
 - **整页替换**，包括旧页面手工编辑的内容和旧宏；工具会提示原页面的宏数量。不要拿已有大量复杂 Confluence 宏的页面直接测试。先建测试页。
 
 ## 安全性、可选备份与并发
@@ -78,6 +78,7 @@
 - `wiki-converter.js` **从之前的离线 HTML 工具抽取，逻辑复用**
 - `storage-converter.js` 本地 Storage XHTML 兼容转换
 - `sync-core.js` URL/页面/冲突/备份的可测试纯函数
+- `attachment-resolver.js` 本地 Markdown 相对路径解析、附件名称冲突处理及 Storage 引用生成
 - `test_*.js` Node.js 模拟测试代码（普通用户安装与运行无需 Node.js）
 
 本工具未在你的企业内网 Confluence 上真实写入测试（无法访问内网）。请先验证只读预览与测试页更新，再用于正式页面。
@@ -144,3 +145,13 @@ Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `
 - 更新器自身升级完成后，再运行核心更新器检查并更新 Chrome 扩展。
 - 从 v1.4.4/v1.4.5 升级需要**最后一次手动刷新更新器**：下载 [最新 Windows 更新器 ZIP](https://github.com/Laity000/confluence-markdown-sync/releases/latest)，运行 `安装Windows自动更新.cmd`，输入原有扩展目录（例如 `D:\\confluence_sync_ext`）。不需要卸载扩展，不要更换目录。
 - 这次迁移后，后续核心更新器将随 GitHub Release 自动升级。稳定启动器本身仅在启动协议发生变化时才需要再次通过安装包刷新。
+
+## v1.4.7：Markdown 本地图片与附件同步
+
+- 同时支持「选择 .md 文件」和「直接粘贴 Markdown」两种工作方式。
+- 新增「选择附件文件」与「选择资源目录」；相对路径按 Markdown 所在目录解析，并优先精确匹配资源目录路径。
+- `![图片](./images/a.png)` 转换为 Confluence Storage 附件图片引用；`[文档](./design.pdf)` 转换为页面附件链接。
+- 预览阶段只解析文件，不会修改 Confluence；确认同步后先检查页面版本，再上传附件，并在更新正文前再次检查冲突。
+- 文件不存在、同名路径歧义、非支持图片格式或超过单文件 10 MiB / 总量 20 MiB 限制时，禁止发布，避免正文引用失效。
+- 外部 HTTP/HTTPS 图片保留为 URL 图片引用；代码块和行内代码中的示例链接不会被当作真实附件上传。
+- 增加资源目录映射、相对路径、代码片段排除、Storage 引用及上传顺序的回归测试。
