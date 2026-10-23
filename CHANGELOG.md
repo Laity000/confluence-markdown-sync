@@ -1,3 +1,9 @@
+## v1.4.10
+
+- Convert dashed-ruler, space-aligned text tables (for example `------ --------------------- ------` followed by aligned rows) into real Confluence tables.
+- Apply the fix to both Wiki Markup and direct Storage XHTML conversion paths.
+- Keep ordinary horizontal rules and standard Markdown pipe tables unchanged; add regression tests.
+
 ## v1.4.4
 
 - Rename the Chrome and Microsoft Edge extension to **Markdown → Confluence 同步**, including the editor title and store listing draft.
