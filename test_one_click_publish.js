@@ -8,7 +8,7 @@ const editor=fs.readFileSync(path.join(__dirname,'editor.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'editor.html'),'utf8');
 assert.doesNotMatch(html,/id=["']accept["']/);
 assert.match(html,/id="backup"/);
-const source=editor.slice(editor.indexOf('async function publish(){'),editor.indexOf("$('preview').addEventListener('click',preview);"));
+const source=editor.slice(editor.indexOf('async function verifyPublishOutcome(p){'),editor.indexOf("$('preview').addEventListener('click',preview);"));
 assert.doesNotMatch(source,/\bdownloadBackup\s*\(/);
 assert.doesNotMatch(source,/\bconfirm\s*\(/);
 assert.doesNotMatch(source,/\baccept\b/);
