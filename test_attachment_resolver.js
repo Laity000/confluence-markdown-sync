@@ -60,6 +60,12 @@ const wiki = Resolver.applyWikiTokens('CMSYNCATTACHMENTTOKEN0TOKEN CMSYNCATTACHM
 assert.match(wiki, /!arch\.png\|alt=Architecture!/);
 assert.match(wiki, /\[Specification\^spec\.pdf\]/);
 
+const pastedParentRelative = Resolver.prepare('[Design](../assets/design.pdf)', [
+  {path:'assets/design.pdf',file:file('design.pdf',30)}
+], '');
+assert.equal(pastedParentRelative.blocked, false);
+assert.equal(pastedParentRelative.uploads[0].filename, 'design.pdf');
+
 const missing = Resolver.prepare('![Missing](./missing.png)', [], 'guide.md');
 assert.equal(missing.blocked, true);
 assert.equal(missing.uploads.length, 0);
