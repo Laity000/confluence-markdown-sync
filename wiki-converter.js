@@ -152,6 +152,31 @@
   function isTableHeader(lines, i) {
     return i+1 < lines.length && lines[i].includes('|') && isSeparator(lines[i+1]) && splitCells(lines[i]).length === splitCells(lines[i+1]).length;
   }
+  // Some generated documentation uses a dashed column ruler followed by
+  // space-aligned rows instead of Markdown pipe-table syntax:
+  // ------ --------------------- ------
+  // Name                        0      4
+  // Only recognize it when at least two following rows consistently contain
+  // the same number of columns, so ordinary horizontal rules stay horizontal.
+  function splitFixedWidthCells(line) {
+    return String(line).trim().split(/[ \t]{2,}/).map(cell => cell.trim());
+  }
+  function fixedWidthTable(lines, i) {
+    if (i + 2 >= lines.length || !/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(lines[i])) return null;
+    const columns = [...lines[i].matchAll(/-{3,}/g)].length;
+    if (columns < 2) return null;
+    const rows = [];
+    let end = i + 1;
+    while (end < lines.length && lines[end].trim()) {
+      const line = lines[end];
+      if (isFenceStart(line) || /^ {0,3}#{1,6}\s+/.test(line) || listItem(line) || /^\s*>/.test(line) || line.includes('|')) break;
+      const cells = splitFixedWidthCells(line);
+      if (cells.length !== columns) break;
+      rows.push(cells);
+      end++;
+    }
+    return rows.length >= 2 ? { rows, end } : null;
+  }
   function isStartBlock(lines, i) {
     if (i >= lines.length) return true;
     let t = lines[i];
@@ -197,6 +222,14 @@
       if (line.trim() && i+1<lines.length && /^ {0,3}(?:=+|-{3,})\s*$/.test(lines[i+1]) && !isFenceStart(line) && !listItem(line)) {
         resetList(); out.push('h'+(lines[i+1].trim().startsWith('=')?'1':'2')+'. '+inline(line.trim(),state));
         state.stats.headings++; i+=2; continue;
+      }
+      const fixedTable = fixedWidthTable(lines, i);
+      if (fixedTable) {
+        resetList(); state.stats.tables++;
+        const renderCell = cell => inline(cell, state).replace(/\n/g, ' ');
+        for (const row of fixedTable.rows) out.push('|' + row.map(renderCell).join('|') + '|');
+        i = fixedTable.end;
+        continue;
       }
       if (isHorizontal(line)) { resetList(); out.push('----'); i++; continue; }
       if(isTableHeader(lines,i)) {
