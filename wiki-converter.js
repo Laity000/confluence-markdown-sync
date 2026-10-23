@@ -159,7 +159,9 @@
   // Only recognize it when at least two following rows consistently contain
   // the same number of columns, so ordinary horizontal rules stay horizontal.
   function splitFixedWidthCells(line) {
-    return String(line).trim().split(/[ \t]{2,}/).map(cell => cell.trim());
+    // Some generated Markdown uses an HTML space entity to indent cells.
+    const cleaned = String(line).replace(/^\\s*&#(?:x0*20|0*32);[ \\t]*/i, '').trim();
+    return cleaned.split(/[ \\t]{2,}/).map(cell => cell.trim());
   }
   function fixedWidthRulerColumns(line) {
     if (!/^\s*-{3,}(?:[ \t]+-{3,}){1,}\s*$/.test(line)) return 0;
@@ -200,6 +202,51 @@
       end++;
     }
     return rows.length >= 2 ? { header, rows, end } : null;
+  }
+  // Recognize a table enclosed by standalone horizontal rules:
+  // ---
+  // LLDB command                         Result
+  // ---
+  // `target variable ...`                Failed
+  // Blank lines between data rows are tolerated, and leading &#x20; entities
+  // are removed by splitFixedWidthCells above.
+  function fixedWidthRuleTable(lines, i) {
+    if (i >= lines.length || !isHorizontal(lines[i])) return null;
+    const skipBlanks = start => {
+      let n = start;
+      while (n < lines.length && !lines[n].trim()) n++;
+      return n;
+    };
+    const headerIndex = skipBlanks(i + 1);
+    if (headerIndex >= lines.length) return null;
+    const header = splitFixedWidthCells(lines[headerIndex]);
+    if (header.length < 2) return null;
+    const rulerIndex = skipBlanks(headerIndex + 1);
+    if (rulerIndex >= lines.length || !isHorizontal(lines[rulerIndex])) return null;
+    const dataStart = skipBlanks(rulerIndex + 1);
+    const rows = [];
+    let cursor = dataStart, lastRowEnd = dataStart;
+    while (cursor < lines.length) {
+      if (!lines[cursor].trim()) {
+        const next = skipBlanks(cursor);
+        if (next >= lines.length || isHorizontal(lines[next]) ||
+            isFenceStart(lines[next]) || /^ {0,3}#{1,6}\\s+/.test(lines[next]) ||
+            listItem(lines[next]) || /^\\s*>/.test(lines[next]) || lines[next].includes('|')) break;
+        if (splitFixedWidthCells(lines[next]).length !== header.length) break;
+        cursor = next;
+        continue;
+      }
+      const line = lines[cursor];
+      if (isHorizontal(line) || isFenceStart(line) ||
+          /^ {0,3}#{1,6}\\s+/.test(line) || listItem(line) ||
+          /^\\s*>/.test(line) || line.includes('|')) break;
+      const cells = splitFixedWidthCells(line);
+      if (cells.length !== header.length) break;
+      rows.push(cells);
+      cursor++;
+      lastRowEnd = cursor;
+    }
+    return rows.length >= 2 ? { header, rows, end: lastRowEnd } : null;
   }
   function isStartBlock(lines, i) {
     if (i >= lines.length) return true;
@@ -246,6 +293,15 @@
       if (line.trim() && i+1<lines.length && /^ {0,3}(?:=+|-{3,})\s*$/.test(lines[i+1]) && !isFenceStart(line) && !listItem(line)) {
         resetList(); out.push('h'+(lines[i+1].trim().startsWith('=')?'1':'2')+'. '+inline(line.trim(),state));
         state.stats.headings++; i+=2; continue;
+      }
+      const ruledFixedTable = fixedWidthRuleTable(lines, i);
+      if (ruledFixedTable) {
+        resetList(); state.stats.tables++;
+        const renderCell = cell => inline(cell, state).replace(/\\n/g, ' ');
+        out.push('||' + ruledFixedTable.header.map(renderCell).join('||') + '||');
+        for (const row of ruledFixedTable.rows) out.push('|' + row.map(renderCell).join('|') + '|');
+        i = ruledFixedTable.end;
+        continue;
       }
       const fixedTable = fixedWidthTable(lines, i);
       if (fixedTable) {
