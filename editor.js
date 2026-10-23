@@ -296,8 +296,14 @@ document.addEventListener('drop',async e=>{const f=Array.from(e.dataTransfer?.fi
 function assertSafeWikiExport(){
   if(SyncCore.hasWikiSensitiveBrackets(els.md.value))throw new Error('PLC 方括号表达式会被 Confluence Wiki 误解析为页面链接，请使用「自动」模式生成 Storage 同步预览，勿手动导入 Wiki Markup。');
 }
-$('copyWiki').addEventListener('click',async()=>{try{assertSafeWikiExport();await navigator.clipboard.writeText(Md2Confluence.convert(els.md.value).output);note('Wiki Markup 已复制，可用于 Confluence 的「插入 Wiki 标记」。','ok');}catch(e){note('复制失败：'+errorText(e),'err');}});
-$('downloadWiki').addEventListener('click',()=>{try{assertSafeWikiExport();const s=Md2Confluence.convert(els.md.value).output;saveBlob(new Blob([s],{type:'text/plain;charset=utf-8'}),SyncCore.safeFilename(state.filename.replace(/\.(md|markdown|txt)$/i,''))+'.wiki.txt');note('Wiki Markup 已导出 TXT。','ok');}catch(e){note('导出失败：'+errorText(e),'err');}});
+function createWikiExport(){
+  assertSafeWikiExport();
+  const plan=AttachmentResolver.prepare(els.md.value,state.resourceFiles,state.sourceRelativePath);
+  if(plan.blocked)throw new Error('本地附件未全部找到或超过大小/格式限制。请先选择资源文件并修复提示，再导出 Wiki Markup。');
+  return AttachmentResolver.applyWikiTokens(Md2Confluence.convert(plan.markdown).output,plan);
+}
+$('copyWiki').addEventListener('click',async()=>{try{const output=createWikiExport();await navigator.clipboard.writeText(output);note('Wiki Markup 已复制；本地附件引用已转换为 Confluence 附件语法，但附件仍需先上传。','ok');}catch(e){note('复制失败：'+errorText(e),'err');}});
+$('downloadWiki').addEventListener('click',()=>{try{const output=createWikiExport();saveBlob(new Blob([output],{type:'text/plain;charset=utf-8'}),SyncCore.safeFilename(state.filename.replace(/\.(md|markdown|txt)$/i,''))+'.wiki.txt');note('Wiki Markup 已导出 TXT。','ok');}catch(e){note('导出失败：'+errorText(e),'err');}});
 (async()=>{
   try{const qs=new URLSearchParams(location.search);let initial=qs.get('target')||'';if(initial&&!/\/pages\/viewpage\.action/.test(initial))initial='';
     if(!initial){const saved=await chrome.storage.local.get('lastPage');initial=saved.lastPage||'';}
