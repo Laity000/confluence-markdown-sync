@@ -2,7 +2,7 @@
 // All HTTP requests are injected into the target Confluence tab's MAIN world.
 // The browser sends the site's own logged-in cookies; this extension never reads them.
 const $=id=>document.getElementById(id);
-const state={preview:null,filename:'document.md',working:false,revision:0,sourceFile:null,sourceRelativePath:'',resourceFiles:[]};
+const state={preview:null,filename:'document.md',working:false,revision:0,sourceFile:null,sourceRelativePath:'',resourceFiles:[],projectMarkdownFiles:[]};
 const els={url:$('url'),md:$('markdown'),status:$('status'),meta:$('meta'),mode:$('mode')};
 function note(message,type='info'){
   els.status.className='alert '+type;
@@ -10,16 +10,18 @@ function note(message,type='info'){
 }
 function errorText(e){return String(e?.message||e||'未知错误').slice(0,1800);}
 function setBusy(flag){state.working=flag; $('preview').disabled=flag;$('openPage').disabled=flag; $('publish').disabled=flag||!canPublish();$('backup').disabled=flag||!state.preview;
-  els.url.disabled=flag;els.md.disabled=flag;els.mode.disabled=flag;$('choose').disabled=flag;$('file').disabled=flag;$('fileEncoding').disabled=flag;
-  $('chooseAttachments').disabled=flag;$('attachments').disabled=flag;$('chooseResourceDirectory').disabled=flag;$('resourceDirectory').disabled=flag;}
+  els.url.disabled=flag;els.md.disabled=flag;els.mode.disabled=flag;$('chooseProjectDirectory').disabled=flag;$('projectDirectory').disabled=flag;$('choose').disabled=flag;$('file').disabled=flag;$('fileEncoding').disabled=flag;
+  $('chooseAttachments').disabled=flag;$('attachments').disabled=flag;$('chooseResourceDirectory').disabled=flag;$('resourceDirectory').disabled=flag;$('projectMarkdownSelect').disabled=flag;}
 function canPublish(){return !!state.preview && !state.preview.noChange && !state.preview.blocked;}
 function invalidate(){state.revision++;state.preview=null;$('diffPanel').hidden=true;els.meta.hidden=true;$('backup').disabled=true;$('publish').disabled=true;$('publishHint').textContent='源文档或目标发生变化，请重新生成预览。';}
 function refreshMarkdown(){
   invalidate();let md=els.md.value;
+  const localReferences=AttachmentResolver.findReferences(md).refs;
   const attachmentPlan=AttachmentResolver.prepare(md,state.resourceFiles,state.sourceRelativePath);
   const res=Md2Confluence.convert(attachmentPlan.markdown);
   $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项 · ${attachmentPlan.references.length} 个本地文件引用`;
   let warns=[...res.warnings,...attachmentPlan.warnings];
+  if(localReferences.length&&!state.resourceFiles.length)warns.push('检测到本地文件引用；尚未选择本地资源。请点击「选择项目目录」或「仅选择资源目录」，授权读取引用的文件。');
   if(SyncCore.hasWikiSensitiveBrackets(md))warns.push('包含 PLC 方括号表达式：自动同步将直接使用 Storage XHTML；请勿复制或导出 Wiki 标记手动导入，以免 Confluence 将 [index] 误转为链接。');
   $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=[...new Set(warns)].join('\n');
   return res;
@@ -265,31 +267,108 @@ $('url').addEventListener('input',invalidate);
 $('markdown').addEventListener('input',refreshMarkdown);
 $('mode').addEventListener('change',invalidate);
 $('openPage').addEventListener('click',async()=>{try{const p=parse();await chrome.tabs.create({url:p.exactUrl});}catch(e){note(errorText(e),'err');}});
+$('chooseProjectDirectory').addEventListener('click',()=>$('projectDirectory').click());
 $('choose').addEventListener('click',()=>$('file').click());
 $('chooseAttachments').addEventListener('click',()=>$('attachments').click());
 $('chooseResourceDirectory').addEventListener('click',()=>$('resourceDirectory').click());
-function setResourceFiles(fileList,kind){
-  state.resourceFiles=AttachmentResolver.collectFiles(fileList);
-  state.sourceRelativePath=AttachmentResolver.findSourcePath(state.sourceFile,state.resourceFiles);
+
+function updateAssetLabel(kind){
   $('assetLabel').textContent=state.resourceFiles.length
-    ?'已选择 '+state.resourceFiles.length+' 个'+kind+'；相对路径优先精确匹配。'
+    ?'已授权 '+state.resourceFiles.length+' 个'+kind+'；本地引用按相对路径优先匹配。'
     :'尚未选择本地附件或资源目录';
+}
+function setResourceFiles(fileList,kind,append=false){
+  const incoming=AttachmentResolver.collectFiles(fileList);
+  if(append){
+    const merged=state.resourceFiles.slice();
+    for(const entry of incoming){
+      const duplicate=merged.some(existing=>existing.path.toLowerCase()===entry.path.toLowerCase()&&
+        Number(existing.file?.size)===Number(entry.file?.size)&&
+        Number(existing.file?.lastModified||0)===Number(entry.file?.lastModified||0));
+      if(!duplicate)merged.push(entry);
+    }
+    state.resourceFiles=merged;
+  }else{
+    state.resourceFiles=incoming;
+  }
+  state.sourceRelativePath=AttachmentResolver.findSourcePath(state.sourceFile,state.resourceFiles);
+  updateAssetLabel(kind);
   invalidate();refreshMarkdown();
 }
-$('attachments').addEventListener('change',()=>setResourceFiles($('attachments').files,'附件文件'));
-$('resourceDirectory').addEventListener('change',()=>setResourceFiles($('resourceDirectory').files,'资源目录文件'));
-async function loadFile(file){
-  if(!file)return;state.sourceFile=file;state.filename=file.name;
-  state.sourceRelativePath=AttachmentResolver.findSourcePath(file,state.resourceFiles);
-  try{const bytes=await file.arrayBuffer();els.md.value=new TextDecoder($('fileEncoding').value).decode(bytes);
-    $('fileLabel').textContent='当前文件：'+file.name;refreshMarkdown();}
-  catch(e){note('文件读取失败：'+errorText(e),'err');}
+function showProjectMarkdownChoices(entries){
+  state.projectMarkdownFiles=AttachmentResolver.listMarkdownFiles(entries);
+  const row=$('projectMarkdownRow'),select=$('projectMarkdownSelect');
+  select.textContent='';
+  if(state.projectMarkdownFiles.length<=1){row.hidden=true;return;}
+  for(const entry of state.projectMarkdownFiles){
+    const option=document.createElement('option');
+    option.value=entry.path;option.textContent=entry.path;select.appendChild(option);
+  }
+  row.hidden=false;
 }
-$('file').addEventListener('change',()=>loadFile($('file').files?.[0]));
-$('fileEncoding').addEventListener('change',()=>{if(state.sourceFile)loadFile(state.sourceFile);});
+async function loadFile(file,relativePath=''){
+  if(!file)return;
+  state.sourceFile=file;state.filename=file.name;
+  state.sourceRelativePath=relativePath||AttachmentResolver.findSourcePath(file,state.resourceFiles);
+  try{
+    const bytes=await file.arrayBuffer();
+    els.md.value=new TextDecoder($('fileEncoding').value).decode(bytes);
+    $('fileLabel').textContent=relativePath?'当前项目文档：'+relativePath:'当前文件：'+file.name;
+    refreshMarkdown();
+  }catch(e){note('文件读取失败：'+errorText(e),'err');}
+}
+$('projectDirectory').addEventListener('change',async()=>{
+  const entries=AttachmentResolver.collectFiles($('projectDirectory').files);
+  if(!entries.length){note('未读取到项目目录中的文件，请重新选择目录。','err');return;}
+  state.resourceFiles=entries;
+  state.sourceRelativePath=AttachmentResolver.findSourcePath(state.sourceFile,state.resourceFiles);
+  const candidates=AttachmentResolver.listMarkdownFiles(entries);
+  state.projectMarkdownFiles=candidates;
+  showProjectMarkdownChoices(entries);
+  updateAssetLabel('项目目录文件');
+  if(!candidates.length){
+    invalidate();refreshMarkdown();
+    note('已读取目录中的 '+entries.length+' 个文件，但没有找到 .md/.markdown 文件；保留当前编辑区内容，可将该目录用作粘贴内容的资源目录。','info');
+    return;
+  }
+  if(candidates.length>1){
+    const select=$('projectMarkdownSelect');
+    select.textContent='';
+    for(const entry of candidates){
+      const option=document.createElement('option');
+      option.value=entry.path;option.textContent=entry.path;select.appendChild(option);
+    }
+    $('projectMarkdownRow').hidden=false;
+  }else{
+    $('projectMarkdownRow').hidden=true;
+  }
+  const selected=candidates[0];
+  $('projectMarkdownSelect').value=selected.path;
+  await loadFile(selected.file,selected.path);
+  if(candidates.length>1)note('已读取项目目录，找到 '+candidates.length+' 份 Markdown；当前先载入 '+selected.path+'，可在上方切换。','ok');
+  else note('已读取项目目录并载入 '+selected.path+'，共授权 '+entries.length+' 个文件用于匹配相对路径。','ok');
+});
+$('projectMarkdownSelect').addEventListener('change',async()=>{
+  const selected=state.projectMarkdownFiles.find(entry=>entry.path===$('projectMarkdownSelect').value);
+  if(selected)await loadFile(selected.file,selected.path);
+});
+$('attachments').addEventListener('change',()=>setResourceFiles($('attachments').files,'附件文件',true));
+$('resourceDirectory').addEventListener('change',()=>setResourceFiles($('resourceDirectory').files,'资源目录文件'));
+$('file').addEventListener('change',async()=>{
+  const file=$('file').files?.[0];
+  if(!file)return;
+  $('projectMarkdownRow').hidden=true;
+  await loadFile(file);
+});
+$('fileEncoding').addEventListener('change',()=>{if(state.sourceFile)loadFile(state.sourceFile,state.sourceRelativePath);});
 els.md.addEventListener('paste',()=>{
-  state.sourceFile=null;state.sourceRelativePath='';
-  $('fileLabel').textContent='当前内容：粘贴或手动编辑';
+  const replacesWholeDocument=!els.md.value.trim()||
+    (els.md.selectionStart===0&&els.md.selectionEnd===els.md.value.length);
+  if(replacesWholeDocument){
+    state.sourceFile=null;state.sourceRelativePath='';
+    $('fileLabel').textContent='当前内容：粘贴或手动编辑';
+    $('projectMarkdownRow').hidden=true;
+  }
 });
 document.addEventListener('dragover',e=>{if(e.dataTransfer?.types.includes('Files'))e.preventDefault();});
 document.addEventListener('drop',async e=>{const f=Array.from(e.dataTransfer?.files||[]).find(x=>/\.(?:md|markdown|txt)$/i.test(x.name));if(!f)return;e.preventDefault();await loadFile(f);});
