@@ -90,7 +90,7 @@ const ruledSource = [
   '',
   '&#x20; \x60target variable STD.VAR\x60           失败（正常）',
   '',
-  '&#x20; \x60target variable -r \'^VAR$\'        成功（正则匹配）',
+  '&#x20; \x60target variable -r \'^VAR$\'\x60        成功（正则匹配）',
   '',
   '&#x20; \x60frame variable STD__VAR\x60           成功'
 ].join('\n');
@@ -98,8 +98,8 @@ const ruledSource = [
 const ruledWiki = wiki.convert(ruledSource);
 assert.equal(ruledWiki.stats.tables, 1);
 assert.match(ruledWiki.output, /^\|\|LLDB 命令\|\|结果\|\|$/m);
-assert.match(ruledWiki.output, /^\|{{target variable STD__VAR}}\|失败，提示找不到全局变量（分析点？）\|$/m);
-assert.match(ruledWiki.output, /^\|{{frame variable STD__VAR}}\|成功\|$/m);
+assert.match(ruledWiki.output, /^\|\{\{target variable STD__VAR\}\}\|失败，提示找不到全局变量（分析点？）\|$/m);
+assert.match(ruledWiki.output, /^\|\{\{frame variable STD__VAR\}\}\|成功\|$/m);
 assert.equal((ruledWiki.output.match(/^\|/gm) || []).length, 5);
 assert.doesNotMatch(ruledWiki.output, /&#x20;/);
 
