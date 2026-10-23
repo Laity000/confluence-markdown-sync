@@ -1,0 +1,34 @@
+name: Build local Chrome extension package
+
+on:
+  push:
+    branches:
+      - build/local-chrome-package
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run JavaScript regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in test_*.js; do node "$f"; done
+      - name: Run package and publisher tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Build local extension ZIP
+        run: python3 scripts/package_extension.py --output dist/confluence-markdown-sync-local.zip
+      - name: Upload local package
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-local-extension
+          path: dist/confluence-markdown-sync-local.zip
+          if-no-files-found: error
