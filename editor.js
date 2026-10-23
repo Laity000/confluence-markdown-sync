@@ -21,9 +21,9 @@ function refreshMarkdown(){
   const res=Md2Confluence.convert(attachmentPlan.markdown);
   $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项 · ${attachmentPlan.references.length} 个本地文件引用`;
   let warns=[...res.warnings,...attachmentPlan.warnings];
-  const needsResources=localReferences.length>0&&!state.resourceFiles.length;
+  const needsResources=localReferences.length>0&&(!state.resourceFiles.length||attachmentPlan.blocked);
   $('chooseResourceDirectory').hidden=!needsResources;
-  if(needsResources)warns.push('检测到本地文件引用；请点击此处的「选择资源目录」，授权读取引用的图片或附件。也可以改用「选择项目目录」一次导入 Markdown 和资源。');
+  if(localReferences.length&&!state.resourceFiles.length)warns.push('检测到本地文件引用；请点击此处的「选择资源目录」，授权读取引用的图片或附件。也可以改用「选择项目目录」一次导入 Markdown 和资源。');
   if(SyncCore.hasWikiSensitiveBrackets(md))warns.push('包含 PLC 方括号表达式：自动同步将直接使用 Storage XHTML；请勿复制或导出 Wiki 标记手动导入，以免 Confluence 将 [index] 误转为链接。');
   $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=[...new Set(warns)].join('\n');
   return res;
@@ -278,20 +278,8 @@ function updateAssetLabel(kind){
     ?'已授权 '+state.resourceFiles.length+' 个'+kind+'；本地引用按相对路径优先匹配。'
     :'尚未选择本地附件或资源目录';
 }
-function setResourceFiles(fileList,kind,append=false){
-  const incoming=AttachmentResolver.collectFiles(fileList);
-  if(append){
-    const merged=state.resourceFiles.slice();
-    for(const entry of incoming){
-      const duplicate=merged.some(existing=>existing.path.toLowerCase()===entry.path.toLowerCase()&&
-        Number(existing.file?.size)===Number(entry.file?.size)&&
-        Number(existing.file?.lastModified||0)===Number(entry.file?.lastModified||0));
-      if(!duplicate)merged.push(entry);
-    }
-    state.resourceFiles=merged;
-  }else{
-    state.resourceFiles=incoming;
-  }
+function setResourceFiles(fileList,kind){
+  state.resourceFiles=AttachmentResolver.collectFiles(fileList);
   state.sourceRelativePath=AttachmentResolver.findSourcePath(state.sourceFile,state.resourceFiles);
   updateAssetLabel(kind);
   invalidate();refreshMarkdown();
