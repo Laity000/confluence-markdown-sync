@@ -100,6 +100,29 @@
   function isHorizontal(line) {
     return /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(line);
   }
+
+  // YAML front matter is a file-level convention, not body content. Strip it
+  // only when the file starts with a delimiter, has a closing delimiter, and
+  // contains a recognizable YAML entry. This avoids treating two ordinary
+  // horizontal rules around prose as metadata by accident.
+  function stripFrontMatter(lines) {
+    if (!lines.length || !/^---[ \t]*$/.test(lines[0])) return lines;
+
+    let closing = -1;
+    for (let i = 1; i < lines.length; i++) {
+      if (/^(?:---|\.\.\.)[ \t]*$/.test(lines[i])) {
+        closing = i;
+        break;
+      }
+    }
+    if (closing < 0) return lines;
+
+    const metadata = lines.slice(1, closing);
+    const hasYamlEntry = metadata.some(line =>
+      /^\s*(?:[A-Za-z0-9_-][\w.-]*\s*:|["'][^"']+["']\s*:|-\s+\S|\?\s+\S)/.test(line)
+    );
+    return hasYamlEntry ? lines.slice(closing + 1) : lines;
+  }
   function listItem(line) {
     const m = line.match(/^(\s{0,24})([-+*]|\d{1,9}[.)])[\t ]+(.*)$/);
     if (!m) return null;
@@ -138,7 +161,7 @@
     const options = Object.assign({ normalizeBlankLines: true }, opts || {});
     const state = {stats:{headings:0, codeBlocks:0, tables:0, lists:0, links:0, images:0, quotes:0}, warnings:[], warnedImage:false};
     const text = String(source || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
-    const lines = text.split('\n');
+    const lines = stripFrontMatter(text.split('\n'));
     const rendered = convertLines(lines, state, options, 0);
     let result = rendered.join('\n');
     result = result.trim() + (result.trim() ? '\n' : '');
