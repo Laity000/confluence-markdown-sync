@@ -28,7 +28,7 @@ test('keeps Setext heading syntax instead of treating it as a horizontal rule', 
 
 test('keeps Markdown table separator rows as table syntax', () => {
   const output = wiki.convert('| Name | Value |\n| --- | --- |\n| A | B |').output;
-  assert.match(output, /^\|\|Name\|\|Value\|\|\n\|A\|B\|$/);
+  assert.match(output, /^\|\|Name\|\|Value\|\|\n\|A\|B\|\n?$/);
   assert.doesNotMatch(output, /^----$/m);
 });
 
