@@ -69,7 +69,7 @@ async function onConfluencePage(req){
         all.push(...page.results);pages++;
         const next=page._links?.next;
         if(next){
-          const nextUrl=new URL(next,window.location.origin);
+          const nextUrl=new URL(next,new URL(url,window.location.origin));
           if(nextUrl.origin!==window.location.origin)throw new Error('附件分页链接跳转到了不同站点，已停止同步。');
           let nextPath=nextUrl.pathname;
           if(req.prefix&&nextPath.startsWith('/rest/')&&nextPath!==req.prefix&&!nextPath.startsWith(req.prefix+'/'))nextPath=req.prefix+nextPath;
