@@ -36,8 +36,12 @@
     const hold=(v)=>{const mark='\uE400'+saved.length+'\uE401';saved.push(v);return mark;};
     s=s.replace(/\\([\\`*_{}\[\]()#+.!<>|~\-])/g,(_,c)=>hold(xml(c)));
     s=replaceCodeSpans(s,code=>hold('<code>'+xml(code)+'</code>'));
-    s=s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,(_,alt,href)=>{
-      warnings.push('检测到 Markdown 图片：本版本不会自动上传附件，已阻止自动同步，防止图片丢失。');
+    s=s.replace(/!\[([^\]]*)\]\(\s*(<[^>]+>|[^)\s]+)(?:\s+["'][^"\n]*["'])?\s*\)/g,(_,alt,rawHref)=>{
+      const href=String(rawHref).replace(/^<|>$/g,'');
+      if(/^https?:\/\//i.test(href)){
+        return hold('<ac:image ac:alt="'+xml(alt||'')+'"><ri:url ri:value="'+xml(href)+'" /></ac:image>');
+      }
+      warnings.push('检测到无法解析的 Markdown 图片路径：'+href+'。请选择包含该文件的资源目录或附件文件。');
       return hold('<strong>[图片未同步：'+xml(alt||href)+']</strong>');
     });
     s=s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g,(_,label,href)=>hold('<a href="'+xml(href)+'">'+xml(label)+'</a>'));
