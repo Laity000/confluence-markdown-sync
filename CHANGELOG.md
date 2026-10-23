@@ -1,3 +1,10 @@
+## v1.4.15
+
+- Recognize space-aligned tables enclosed by standalone horizontal rules, including blank lines between rows.
+- Strip leading HTML space entities such as `&#x20;` before parsing table cells.
+- Render these tables as real Confluence tables in both Wiki Markup and Storage XHTML modes.
+- Add regression coverage for the reported LLDB command/result table.
+
 ## v1.4.14
 
 - Recognize fixed-width tables with a header row, dashed column ruler, and blank lines around the ruler.
