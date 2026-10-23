@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publish_edge:
+        description: 'Submit the current version to Microsoft Edge Add-ons for review'
+        type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: write
@@ -92,7 +98,7 @@ jobs:
   edge_publish:
     # The Update API cannot create a new Edge product; first listing is manual.
     needs: release
-    if: ${{ needs.release.outputs.created == 'true' && vars.EDGE_PRODUCT_ID != '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_edge && vars.EDGE_PRODUCT_ID != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
