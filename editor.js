@@ -49,74 +49,141 @@ async function requestSiteAccess(details){
 /** This function executes inside the existing Confluence page, not in the extension origin. */
 async function onConfluencePage(req){
   'use strict';
-  if(window.location.origin!==req.origin)throw new Error('安全检查失败：目标浏览器标签页与指定 Confluence 站点不同源。');
-  const path=req.prefix+'/rest/api/content/'+encodeURIComponent(req.pageId);
-  async function call(url,options){
-    const response=await fetch(url,{credentials:'same-origin',redirect:'follow',cache:'no-store',headers:{'Accept':'application/json',...(options?.headers||{})},method:options?.method||'GET',body:options?.body});
-    const ctype=response.headers.get('content-type')||'';
-    const body=await response.text();
-    if(!ctype.toLowerCase().includes('json'))throw new Error('接口未返回 JSON，HTTP '+response.status+'；可能是登录失效、接口不存在或代理重定向。'+body.slice(0,140).replace(/<[^>]+>/g,''));
-    let value;try{value=JSON.parse(body);}catch{throw new Error('无法解析 Confluence REST JSON（HTTP '+response.status+'）。');}
-    if(!response.ok){const description=(value.message||value.errorMessage||JSON.stringify(value.errors||value)).slice(0,500);throw new Error('Confluence API HTTP '+response.status+': '+description);}
-    return value;
-  }
-  if(req.operation==='read')return await call(path+'?expand=version,body.storage,space');
-  if(req.operation==='convert'){
-    const result=await call(req.prefix+'/rest/api/contentbody/convert/storage',{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:req.wiki,representation:'wiki'})
-    });
-    if(typeof result.value!=='string'||result.representation!=='storage')throw new Error('Confluence 未返回 Storage 格式转换结果。');
-    return {value:result.value};
-  }
-  if(req.operation==='update'){
-    const expected=req.snapshot;
-    const matchesSnapshot=page=>String(page.id)===String(req.pageId)&&page.type==='page'&&
-      typeof page.body?.storage?.value==='string'&&typeof page.version?.number==='number'&&
-      page.version.number===expected.version&&page.title===expected.title&&page.body.storage.value===expected.storage;
-    const now=await call(path+'?expand=version,body.storage');
-    if(String(now.id)!==String(req.pageId)||now.type!=='page'||typeof now.body?.storage?.value!=='string'||typeof now.version?.number!=='number')
-      throw new Error('更新前远端页面信息不完整，已终止。');
-    if(!matchesSnapshot(now))
-      return {conflict:true,latestVersion:now.version.number, message:'目标页面在预览后已变化，尚未上传附件或写入正文。请重新预览并确认。'};
-    let uploaded=0;
-    try{
-      for(const attachment of (req.attachments||[])){
-        if(!attachment||typeof attachment.filename!=='string'||!attachment.filename.trim()||
-           /[\\/\x00-\x1f]/.test(attachment.filename)||typeof attachment.data!=='string')
-          throw new Error('附件数据格式无效。');
-        const binary=atob(attachment.data);
-        const bytes=new Uint8Array(binary.length);
-        for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-        const form=new FormData();
-        form.append('file',new Blob([bytes],{type:attachment.mimeType||'application/octet-stream'}),attachment.filename);
-        await call(path+'/child/attachment',{method:'POST',headers:{'X-Atlassian-Token':'nocheck'},body:form});
-        uploaded++;
-      }
-    }catch(e){
-      throw new Error('附件上传失败；页面正文尚未更新，已成功上传 '+uploaded+' 个附件。原因：'+String(e?.message||e));
+  try{
+    if(window.location.origin!==req.origin)throw new Error('安全检查失败：目标浏览器标签页与指定 Confluence 站点不同源。');
+    const path=req.prefix+'/rest/api/content/'+encodeURIComponent(req.pageId);
+    async function call(url,options){
+      const response=await fetch(url,{credentials:'same-origin',redirect:'follow',cache:'no-store',headers:{'Accept':'application/json',...(options?.headers||{})},method:options?.method||'GET',body:options?.body});
+      const ctype=response.headers.get('content-type')||'';
+      const body=await response.text();
+      if(!ctype.toLowerCase().includes('json'))throw new Error('接口未返回 JSON，HTTP '+response.status+'；可能是登录失效、接口不存在或代理重定向。'+body.slice(0,140).replace(/<[^>]+>/g,''));
+      let value;try{value=JSON.parse(body);}catch{throw new Error('无法解析 Confluence REST JSON（HTTP '+response.status+'）。');}
+      if(!response.ok){const description=(value.message||value.errorMessage||JSON.stringify(value.errors||value)).slice(0,500);throw new Error('Confluence API HTTP '+response.status+': '+description);}
+      return value;
     }
-    const after=await call(path+'?expand=version,body.storage');
-    if(String(after.id)!==String(req.pageId)||after.type!=='page'||typeof after.body?.storage?.value!=='string'||typeof after.version?.number!=='number')
-      throw new Error('附件上传后页面信息不完整，未写入正文。已上传附件数：'+uploaded+'。');
-    if(!matchesSnapshot(after))
-      return {conflict:true,latestVersion:after.version.number,uploadedAttachments:uploaded,
-        message:'上传附件期间目标页面发生变化，正文未写入。已上传的附件可能已保留在页面附件列表中；请重新预览后再同步。'};
-    if(req.storage===after.body.storage.value)
-      return {unchanged:true,version:after.version.number,attachmentsUploaded:uploaded};
-    const payload={id:String(req.pageId),type:'page',title:after.title,
-      version:{number:after.version.number+1},body:{storage:{value:req.storage,representation:'storage'}}};
-    const saved=await call(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(String(saved.id)!==String(req.pageId)||!Number.isInteger(saved.version?.number)||saved.version.number!==payload.version.number)
-      throw new Error('PUT 已收到响应，但返回的页面 ID/版本不符合预期。已上传附件数：'+uploaded+'。请先检查远端是否已经更新，切勿直接重试。');
-    return {updated:true,version:saved.version.number,attachmentsUploaded:uploaded};
+    async function listAttachments(){
+      const all=[];let url=path+'/child/attachment?limit=200';let pages=0;
+      while(url&&pages<50){
+        const page=await call(url);
+        if(!Array.isArray(page.results))throw new Error('Confluence 附件列表响应格式不正确，缺少 results 数组。');
+        all.push(...page.results);pages++;
+        const next=page._links?.next;
+        if(next){
+          const nextUrl=new URL(next,new URL(url,window.location.origin));
+          if(nextUrl.origin!==window.location.origin)throw new Error('附件分页链接跳转到了不同站点，已停止同步。');
+          let nextPath=nextUrl.pathname;
+          if(req.prefix&&nextPath.startsWith('/rest/')&&nextPath!==req.prefix&&!nextPath.startsWith(req.prefix+'/'))nextPath=req.prefix+nextPath;
+          url=nextPath+nextUrl.search;
+        }else url='';
+      }
+      if(url)throw new Error('附件列表分页超过安全上限，已停止同步。');
+      return all;
+    }
+    async function downloadAttachment(attachment){
+      const link=attachment?._links?.download;
+      if(!link)return null;
+      let resolvedLink=link;
+      if(resolvedLink.startsWith('/')&&req.prefix&&resolvedLink!==req.prefix&&!resolvedLink.startsWith(req.prefix+'/'))resolvedLink=req.prefix+resolvedLink;
+      const url=new URL(resolvedLink,window.location.origin+(req.prefix||'')+'/');
+      if(url.origin!==window.location.origin)throw new Error('已有附件下载链接指向不同站点，已停止同步。');
+      const response=await fetch(url.href,{credentials:'same-origin',redirect:'follow',cache:'no-store'});
+      if(!response.ok)throw new Error('读取已有附件内容失败，HTTP '+response.status+'（'+(attachment.title||attachment.id||'unknown')+'）。');
+      const type=(response.headers.get('content-type')||'').toLowerCase();
+      if(type.includes('text/html'))throw new Error('读取已有附件时返回了 HTML 页面，可能登录已失效或附件下载被重定向。');
+      return new Uint8Array(await response.arrayBuffer());
+    }
+    function sameBytes(a,b){
+      if(!a||!b||a.length!==b.length)return false;
+      for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;
+      return true;
+    }
+    async function sendAttachment(attachment,existing){
+      const form=new FormData();
+      form.append('file',new Blob([attachment.bytes],{type:attachment.mimeType||'application/octet-stream'}),attachment.filename);
+      if(existing&&existing.id){
+        await call(path+'/child/attachment/'+encodeURIComponent(existing.id)+'/data',{
+          method:'POST',headers:{'X-Atlassian-Token':'nocheck'},body:form
+        });
+        return 'updated';
+      }
+      await call(path+'/child/attachment',{
+        method:'POST',headers:{'X-Atlassian-Token':'nocheck'},body:form
+      });
+      return 'uploaded';
+    }
+    if(req.operation==='read')return await call(path+'?expand=version,body.storage,space');
+    if(req.operation==='convert'){
+      const result=await call(req.prefix+'/rest/api/contentbody/convert/storage',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:req.wiki,representation:'wiki'})
+      });
+      if(typeof result.value!=='string'||result.representation!=='storage')throw new Error('Confluence 未返回 Storage 格式转换结果。');
+      return {value:result.value};
+    }
+    if(req.operation==='update'){
+      const expected=req.snapshot;
+      const matchesSnapshot=page=>String(page.id)===String(req.pageId)&&page.type==='page'&&
+        typeof page.body?.storage?.value==='string'&&typeof page.version?.number==='number'&&
+        page.version.number===expected.version&&page.title===expected.title&&page.body.storage.value===expected.storage;
+      const now=await call(path+'?expand=version,body.storage');
+      if(String(now.id)!==String(req.pageId)||now.type!=='page'||typeof now.body?.storage?.value!=='string'||typeof now.version?.number!=='number')
+        throw new Error('更新前远端页面信息不完整，已终止。');
+      if(!matchesSnapshot(now))
+        return {conflict:true,latestVersion:now.version.number,message:'目标页面在预览后已变化，尚未上传附件或写入正文。请重新预览并确认。'};
+
+      let uploaded=0,updated=0,skipped=0;
+      try{
+        const requestedAttachments=req.attachments||[];
+        const existingAttachments=requestedAttachments.length?await listAttachments():[];
+        for(const attachment of requestedAttachments){
+          if(!attachment||typeof attachment.filename!=='string'||!attachment.filename.trim()||
+             /[\\/\x00-\x1f]/.test(attachment.filename)||typeof attachment.data!=='string')
+            throw new Error('附件数据格式无效。');
+          const binary=atob(attachment.data);
+          const bytes=new Uint8Array(binary.length);
+          for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+          const matches=existingAttachments.filter(item=>item.title===attachment.filename);
+          if(matches.length>1)throw new Error('Confluence 中存在多个同名附件，无法安全判断应更新哪一个：'+attachment.filename);
+          const existing=matches[0]||null;
+          if(existing){
+            const remoteBytes=await downloadAttachment(existing);
+            if(remoteBytes&&sameBytes(bytes,remoteBytes)){skipped++;continue;}
+          }
+          const outcome=await sendAttachment({...attachment,bytes},existing);
+          if(outcome==='updated')updated++;else uploaded++;
+        }
+      }catch(e){
+        throw new Error('附件处理失败；页面正文尚未更新。新增 '+uploaded+' 个、更新 '+updated+' 个、跳过未变化 '+skipped+' 个。原因：'+String(e?.message||e));
+      }
+
+      const after=await call(path+'?expand=version,body.storage');
+      if(String(after.id)!==String(req.pageId)||after.type!=='page'||typeof after.body?.storage?.value!=='string'||typeof after.version?.number!=='number')
+        throw new Error('附件处理后页面信息不完整，未写入正文。新增 '+uploaded+' 个、更新 '+updated+' 个、跳过未变化 '+skipped+' 个。');
+      if(!matchesSnapshot(after))
+        return {conflict:true,latestVersion:after.version.number,uploadedAttachments:uploaded+updated,
+          attachmentsSkipped:skipped,message:'附件处理期间目标页面发生变化，正文未写入。已新增/更新的附件可能已保留在页面附件列表中；请重新预览后再同步。'};
+      if(req.storage===after.body.storage.value)
+        return {unchanged:true,version:after.version.number,attachmentsUploaded:uploaded+updated,attachmentsSkipped:skipped};
+      const payload={id:String(req.pageId),type:'page',title:after.title,
+        version:{number:after.version.number+1},body:{storage:{value:req.storage,representation:'storage'}}};
+      const saved=await call(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(String(saved.id)!==String(req.pageId)||!Number.isInteger(saved.version?.number)||saved.version.number!==payload.version.number)
+        throw new Error('PUT 已收到响应，但返回的页面 ID/版本不符合预期。新增 '+uploaded+' 个、更新 '+updated+' 个、跳过未变化 '+skipped+' 个。请先检查远端是否已经更新，切勿直接重试。');
+      return {updated:true,version:saved.version.number,attachmentsUploaded:uploaded+updated,attachmentsSkipped:skipped};
+    }
+    throw new Error('未知操作。');
+  }catch(error){
+    // Return page-context errors explicitly: some extension/browser combinations otherwise
+    // surface a missing injection result and hide the useful Confluence API error.
+    return {__cmsyncError:String(error?.message||error||'未知页面脚本错误')};
   }
-  throw new Error('未知操作。');
 }
 async function callSite(details,operation,data={}){
   const tab=await getSiteTab(details);
   const [result]=await chrome.scripting.executeScript({target:{tabId:tab.id},world:'MAIN',func:onConfluencePage,args:[{operation,origin:details.origin,prefix:details.prefix,pageId:details.pageId,...data}]});
   if(!result)throw new Error('Confluence 标签页未执行脚本；请检查扩展访问权限和浏览器策略。');
   if(!('result' in result))throw new Error('无法收到 Confluence 标签页的接口返回值。');
+  if(result.result&&typeof result.result==='object'&&typeof result.result.__cmsyncError==='string')
+    throw new Error(result.result.__cmsyncError);
   return result.result;
 }
 async function preview(){
@@ -266,10 +333,14 @@ async function publish(){
     try{
       result=await callSite(p.details,'update',{snapshot:p.current,storage:p.storage,attachments});
     }catch(e){updateError=e;}
-    if(result?.conflict){invalidate();note('版本冲突：'+result.message+' 最新版本 v'+result.latestVersion+'。'+(result.uploadedAttachments?'已上传 '+result.uploadedAttachments+' 个附件，但正文未更新。':'未修改远端正文。'),'err');return;}
-    if(result?.unchanged){invalidate();note(result.attachmentsUploaded?'附件已上传/更新 '+result.attachmentsUploaded+' 个；正文内容无需更新。':'远端内容与新 Storage 相同，无需更新。','ok');return;}
+    if(result?.conflict){invalidate();note('版本冲突：'+result.message+' 最新版本 v'+result.latestVersion+'。'+(result.uploadedAttachments?'已新增/更新 '+result.uploadedAttachments+' 个附件。':'未新增或更新附件。')+(result.attachmentsSkipped?' 跳过未变化附件 '+result.attachmentsSkipped+' 个。':'')+' 正文未更新。','err');return;}
+    if(result?.unchanged){
+      invalidate();
+      const attachmentNote=(result.attachmentsUploaded?'新增/更新附件 '+result.attachmentsUploaded+' 个； ':'')+(result.attachmentsSkipped?'跳过未变化附件 '+result.attachmentsSkipped+' 个； ':'');
+      note(attachmentNote+(attachmentNote?'正文内容无需更新。':'远端内容与新 Storage 相同，无需更新。'),'ok');return;
+    }
     if(result?.updated){
-      invalidate();note('同步成功！Confluence 已生成 v'+result.version+'，上传/更新附件 '+(result.attachmentsUploaded||0)+' 个；页面 URL 不变。','ok');return;
+      invalidate();note('同步成功！Confluence 已生成 v'+result.version+'，新增/更新附件 '+(result.attachmentsUploaded||0)+' 个，跳过未变化附件 '+(result.attachmentsSkipped||0)+' 个；页面 URL 不变。','ok');return;
     }
     // The REST write may have succeeded even if its response was lost or malformed.
     // Read the page back before asking the user to retry, so we don't create duplicate updates.

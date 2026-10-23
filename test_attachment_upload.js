@@ -16,6 +16,9 @@ const fetchStub=async(url,opts={})=>{
   if(url.endsWith('/rest/api/content/123456?expand=version,body.storage')&&method==='GET'){
     getCount++;return response(JSON.parse(JSON.stringify(db)));
   }
+  if(url.includes('/rest/api/content/123456/child/attachment?limit=200')&&method==='GET'){
+    return response({results:[],_links:{}});
+  }
   if(url.endsWith('/rest/api/content/123456/child/attachment')&&method==='POST'){
     uploadCount++;
     assert.equal(opts.headers['X-Atlassian-Token'],'nocheck');
