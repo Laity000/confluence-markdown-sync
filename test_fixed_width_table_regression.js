@@ -74,3 +74,42 @@ assert.equal((headedStorage.match(/<td>/g) || []).length, 18);
 assert.match(headedStorage, /<td>C\.E<\/td><td>12<\/td><td>4<\/td>/);
 assert.doesNotMatch(headedStorage, /<hr \/>/, 'the column ruler must not become a horizontal rule');
 
+// Some copied debugging notes use horizontal rules around a space-aligned
+// table rather than a multi-column dashed ruler. Blank lines and &#x20; cell
+// prefixes should not prevent the table from being recognized.
+const ruledSource = [
+  '2. 当前测试现象',
+  '',
+  '---',
+  '',
+  '&#x20; LLDB 命令                           结果',
+  '',
+  '---',
+  '',
+  '&#x20; `target variable STD__VAR`          失败，提示找不到全局变量（分析点？）',
+  '',
+  '&#x20; `target variable STD.VAR`           失败（正常）',
+  '',
+  '&#x20; `target variable -r \'^VAR$\'`        成功（正则匹配）',
+  '',
+  '&#x20; `frame variable STD__VAR`           成功'
+].join('\\n');
+
+const ruledWiki = wiki.convert(ruledSource);
+assert.equal(ruledWiki.stats.tables, 1);
+assert.match(ruledWiki.output, /^\\|\\|LLDB 命令\\|\\|结果\\|\\|$/m);
+assert.match(ruledWiki.output, /^\\|{{target variable STD__VAR}}\\|失败，提示找不到全局变量（分析点？）\\|$/m);
+assert.match(ruledWiki.output, /^\\|{{frame variable STD__VAR}}\\|成功\\|$/m);
+assert.equal((ruledWiki.output.match(/^\\|/gm) || []).length, 5);
+assert.doesNotMatch(ruledWiki.output, /&#x20;/);
+
+const ruledStorage = storage.render(ruledSource).value;
+assert.match(ruledStorage, /<table><tbody><tr><th>LLDB 命令<\\/th><th>结果<\\/th><\\/tr>/);
+assert.equal((ruledStorage.match(/<tr>/g) || []).length, 5);
+assert.equal((ruledStorage.match(/<th>/g) || []).length, 2);
+assert.equal((ruledStorage.match(/<td>/g) || []).length, 8);
+assert.match(ruledStorage, /<td><code>target variable STD__VAR<\\/code><\\/td><td>失败，提示找不到全局变量（分析点？）<\\/td>/);
+assert.doesNotMatch(ruledStorage, /&#x20;/);
+
+console.log('PASS standalone horizontal rules and HTML-space-prefixed fixed-width tables convert correctly');
+
