@@ -52,7 +52,7 @@ assert.equal(missing.uploads.length, 0);
 assert.match(Resolver.applyStorageTokens('<p>'+missing.references[0].token+'</p>', missing), /未找到本地文件/);
 
 const duplicate = Resolver.prepare(
-  '[x](./a/logo.png)',
+  '[x](./logo.png)',
   [
     {path:'a/logo.png',file:file('logo.png',20)},
     {path:'b/logo.png',file:file('logo.png',21)}
