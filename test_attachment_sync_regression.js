@@ -38,7 +38,7 @@ async function runScenario({existing=[],remoteBytes=LOCAL_BYTES,failAttachmentUp
         return responseJson(remotePage);
       if(url.pathname===PREFIX+'/rest/api/content/'+PAGE_ID+'/child/attachment'&&method==='GET')
         return responseJson({results:existing,_links:{}});
-      if(url.pathname==='/download/attachments/att-1/diagram.png'&&method==='GET')
+      if(url.pathname==='/confluence/download/attachments/att-1/diagram.png'&&method==='GET')
         return new Response(binary,{status:200,headers:{'content-type':'application/octet-stream'}});
       if(url.pathname===PREFIX+'/rest/api/content/'+PAGE_ID+'/child/attachment/att-1/data'&&method==='POST'){
         attachmentUpdates.push(url.pathname);
