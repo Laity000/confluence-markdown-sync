@@ -12,7 +12,7 @@ $ExpectedName = 'Markdown ' + [char]0x2192 + ' Confluence ' + [char]0x540C + [ch
 # Accept the legacy name when migrating an existing unpacked Chrome installation.
 $LegacyName = 'Markdown ' + [char]0x2192 + ' Confluence ' + [char]0x5185 + [char]0x7F51 + [char]0x540C + [char]0x6B65
 $RecognizedNames = @($ExpectedName, $LegacyName)
-$AllowedFiles = @('manifest.json','background.js','editor.html','editor.css','editor.js','wiki-converter.js','storage-converter.js','sync-core.js','icon16.png','icon48.png','icon128.png')
+$AllowedFiles = @('manifest.json','background.js','editor.html','editor.css','editor.js','wiki-converter.js','storage-converter.js','sync-core.js','attachment-resolver.js','icon16.png','icon48.png','icon128.png')
 $StateDir = $PSScriptRoot
 $ConfigFile = Join-Path $StateDir 'config.json'
 $LockFile = Join-Path $StateDir 'update.lock'
