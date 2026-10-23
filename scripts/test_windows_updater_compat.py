@@ -32,7 +32,7 @@ class UpdaterCompatTest(unittest.TestCase):
 
     def test_scheduler_added_only_after_initial_update_succeeds(self):
         script = (ROOT / 'windows/Install-ConfluenceSyncUpdater.ps1').read_text(encoding='ascii')
-        self.assertLess(script.index('& $script'), script.index('Register-ScheduledTask'))
+        self.assertLess(script.index('& $bootstrapper'), script.index('Register-ScheduledTask'))
         self.assertLess(script.index('if ($LASTEXITCODE'), script.index('Register-ScheduledTask'))
 
 

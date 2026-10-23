@@ -16,6 +16,6 @@ if errorlevel 1 (
     echo Installation failed. See the messages above.
 ) else (
     echo.
-    echo Installation complete. Open chrome://extensions and load/reload your folder once.
+    echo Installation complete. If this extension is not loaded yet, load the same folder in chrome://extensions.
 )
 pause

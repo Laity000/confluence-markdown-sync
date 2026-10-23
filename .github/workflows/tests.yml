@@ -10,8 +10,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run regression tests
+      - name: Run JavaScript regression tests
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           for f in test_*.js; do node "$f"; done
+      - name: Run Python packaging and updater tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'

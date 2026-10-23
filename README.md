@@ -136,3 +136,11 @@ Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `
 - 识别文件开头格式正确且包含 YAML 字段的 Front Matter，并在转换正文前移除元数据区。
 - 保留 Setext 二级标题、表格分隔行以及围栏代码块中的 `---` 原有语义。
 - 增加对应回归测试，避免分割线与元数据边界相互误判。
+
+## v1.4.6：Windows 更新器自身自动更新
+
+- 新增稳定的 `Update-ConfluenceSyncBootstrap.ps1`，计划任务改为调用启动器，而不是直接调用核心更新器。
+- 启动器每次检查最新正式 Release；发现核心更新器版本落后时，先下载 Windows 更新器 ZIP，校验 SHA-256、版本标记和 ZIP 文件白名单，再替换核心脚本。
+- 更新器自身升级完成后，再运行核心更新器检查并更新 Chrome 扩展。
+- 从 v1.4.4/v1.4.5 升级需要**最后一次手动刷新更新器**：下载 [最新 Windows 更新器 ZIP](https://github.com/Laity000/confluence-markdown-sync/releases/latest)，运行 `安装Windows自动更新.cmd`，输入原有扩展目录（例如 `D:\\confluence_sync_ext`）。不需要卸载扩展，不要更换目录。
+- 这次迁移后，后续核心更新器将随 GitHub Release 自动升级。稳定启动器本身仅在启动协议发生变化时才需要再次通过安装包刷新。
