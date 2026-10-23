@@ -41,7 +41,7 @@ const req={origin:'http://intra.example',prefix:'',pageId:'123456'};
   assert.equal(save.updated,true);assert.equal(save.version,11);assert.equal(putCount,1);
   const nochange=await run({...req,operation:'update',snapshot:{id:db.id,title:db.title,version:db.version.number,storage:db.body.storage.value},storage:db.body.storage.value});
   assert.equal(nochange.unchanged,true);assert.equal(putCount,1);
-  await assert.rejects(()=>run({...req,origin:'http://other.example',operation:'read'}),/安全检查/);
+  const securityError=await run({...req,origin:'http://other.example',operation:'read'});assert.match(securityError.__cmsyncError,/安全检查/);
   console.log('PASS mock Confluence 已登录 GET / Wiki 转 Storage / 版本冲突拒绝写入 / 安全 PUT / 无变化跳过 / 同源检查');
   console.log(`mock GET=${readCount}, PUT=${putCount}`);
 })().catch(e=>{console.error(e);process.exitCode=1;});
