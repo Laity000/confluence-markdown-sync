@@ -80,7 +80,9 @@ async function onConfluencePage(req){
     async function downloadAttachment(attachment){
       const link=attachment?._links?.download;
       if(!link)return null;
-      const url=new URL(link,window.location.origin);
+      let resolvedLink=link;
+      if(resolvedLink.startsWith('/')&&req.prefix&&resolvedLink!==req.prefix&&!resolvedLink.startsWith(req.prefix+'/'))resolvedLink=req.prefix+resolvedLink;
+      const url=new URL(resolvedLink,window.location.origin+(req.prefix||'')+'/');
       if(url.origin!==window.location.origin)throw new Error('已有附件下载链接指向不同站点，已停止同步。');
       const response=await fetch(url.href,{credentials:'same-origin',redirect:'follow',cache:'no-store'});
       if(!response.ok)throw new Error('读取已有附件内容失败，HTTP '+response.status+'（'+(attachment.title||attachment.id||'unknown')+'）。');
@@ -128,8 +130,9 @@ async function onConfluencePage(req){
 
       let uploaded=0,updated=0,skipped=0;
       try{
-        const existingAttachments=await listAttachments();
-        for(const attachment of (req.attachments||[])){
+        const requestedAttachments=req.attachments||[];
+        const existingAttachments=requestedAttachments.length?await listAttachments():[];
+        for(const attachment of requestedAttachments){
           if(!attachment||typeof attachment.filename!=='string'||!attachment.filename.trim()||
              /[\\/\x00-\x1f]/.test(attachment.filename)||typeof attachment.data!=='string')
             throw new Error('附件数据格式无效。');
