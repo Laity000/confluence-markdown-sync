@@ -2,25 +2,26 @@
 // All HTTP requests are injected into the target Confluence tab's MAIN world.
 // The browser sends the site's own logged-in cookies; this extension never reads them.
 const $=id=>document.getElementById(id);
-const state={preview:null,filename:'document.md',working:false,revision:0,sourceFile:null};
+const state={preview:null,filename:'document.md',working:false,revision:0,sourceFile:null,sourceRelativePath:'',resourceFiles:[]};
 const els={url:$('url'),md:$('markdown'),status:$('status'),meta:$('meta'),mode:$('mode')};
-const missingImages=/!\[[^\]]*\]\([^)]+\)/;
 function note(message,type='info'){
   els.status.className='alert '+type;
   els.status.textContent=message;
 }
 function errorText(e){return String(e?.message||e||'未知错误').slice(0,1800);}
 function setBusy(flag){state.working=flag; $('preview').disabled=flag;$('openPage').disabled=flag; $('publish').disabled=flag||!canPublish();$('backup').disabled=flag||!state.preview;
-  els.url.disabled=flag;els.md.disabled=flag;els.mode.disabled=flag;$('choose').disabled=flag;$('file').disabled=flag;$('fileEncoding').disabled=flag;}
+  els.url.disabled=flag;els.md.disabled=flag;els.mode.disabled=flag;$('choose').disabled=flag;$('file').disabled=flag;$('fileEncoding').disabled=flag;
+  $('chooseAttachments').disabled=flag;$('attachments').disabled=flag;$('chooseResourceDirectory').disabled=flag;$('resourceDirectory').disabled=flag;}
 function canPublish(){return !!state.preview && !state.preview.noChange && !state.preview.blocked;}
 function invalidate(){state.revision++;state.preview=null;$('diffPanel').hidden=true;els.meta.hidden=true;$('backup').disabled=true;$('publish').disabled=true;$('publishHint').textContent='源文档或目标发生变化，请重新生成预览。';}
 function refreshMarkdown(){
-  invalidate();let md=els.md.value,res=Md2Confluence.convert(md);
+  invalidate();let md=els.md.value;
+  const attachmentPlan=AttachmentResolver.prepare(md,state.resourceFiles,state.sourceRelativePath);
+  const res=Md2Confluence.convert(attachmentPlan.markdown);
   $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项`;
-  let warns=[...res.warnings];
+  let warns=[...res.warnings,...attachmentPlan.warnings];
   if(SyncCore.hasWikiSensitiveBrackets(md))warns.push('包含 PLC 方括号表达式：自动同步将直接使用 Storage XHTML；请勿复制或导出 Wiki 标记手动导入，以免 Confluence 将 [index] 误转为链接。');
-  if(missingImages.test(md))warns.push('Markdown 图片暂不自动上传：为防止图片丢失，含 Markdown 图片的文档将禁止自动发布。');
-  $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=warns.join('\n');
+  $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=[...new Set(warns)].join('\n');
   return res;
 }
 function parse(){return SyncCore.parsePageUrl(els.url.value);}
@@ -64,19 +65,46 @@ async function onConfluencePage(req){
     return {value:result.value};
   }
   if(req.operation==='update'){
-    const now=await call(path+'?expand=version,body.storage');
     const expected=req.snapshot;
+    const matchesSnapshot=page=>String(page.id)===String(req.pageId)&&page.type==='page'&&
+      typeof page.body?.storage?.value==='string'&&typeof page.version?.number==='number'&&
+      page.version.number===expected.version&&page.title===expected.title&&page.body.storage.value===expected.storage;
+    const now=await call(path+'?expand=version,body.storage');
     if(String(now.id)!==String(req.pageId)||now.type!=='page'||typeof now.body?.storage?.value!=='string'||typeof now.version?.number!=='number')
       throw new Error('更新前远端页面信息不完整，已终止。');
-    if(now.version.number!==expected.version||now.title!==expected.title||now.body.storage.value!==expected.storage)
-      return {conflict:true,latestVersion:now.version.number, message:'目标页面在预览后已变化。未写入；请重新预览并确认。'};
-    if(req.storage===now.body.storage.value)return {unchanged:true,version:now.version.number};
-    const payload={id:String(req.pageId),type:'page',title:now.title,
-      version:{number:now.version.number+1},body:{storage:{value:req.storage,representation:'storage'}}};
+    if(!matchesSnapshot(now))
+      return {conflict:true,latestVersion:now.version.number, message:'目标页面在预览后已变化，尚未上传附件或写入正文。请重新预览并确认。'};
+    let uploaded=0;
+    try{
+      for(const attachment of (req.attachments||[])){
+        if(!attachment||typeof attachment.filename!=='string'||!attachment.filename.trim()||
+           /[\\/\x00-\x1f]/.test(attachment.filename)||typeof attachment.data!=='string')
+          throw new Error('附件数据格式无效。');
+        const binary=atob(attachment.data);
+        const bytes=new Uint8Array(binary.length);
+        for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+        const form=new FormData();
+        form.append('file',new Blob([bytes],{type:attachment.mimeType||'application/octet-stream'}),attachment.filename);
+        await call(path+'/child/attachment',{method:'POST',headers:{'X-Atlassian-Token':'no-check'},body:form});
+        uploaded++;
+      }
+    }catch(e){
+      throw new Error('附件上传失败；页面正文尚未更新，已成功上传 '+uploaded+' 个附件。原因：'+String(e?.message||e));
+    }
+    const after=await call(path+'?expand=version,body.storage');
+    if(String(after.id)!==String(req.pageId)||after.type!=='page'||typeof after.body?.storage?.value!=='string'||typeof after.version?.number!=='number')
+      throw new Error('附件上传后页面信息不完整，未写入正文。已上传附件数：'+uploaded+'。');
+    if(!matchesSnapshot(after))
+      return {conflict:true,latestVersion:after.version.number,uploadedAttachments:uploaded,
+        message:'上传附件期间目标页面发生变化，正文未写入。已上传的附件可能已保留在页面附件列表中；请重新预览后再同步。'};
+    if(req.storage===after.body.storage.value)
+      return {unchanged:true,version:after.version.number,attachmentsUploaded:uploaded};
+    const payload={id:String(req.pageId),type:'page',title:after.title,
+      version:{number:after.version.number+1},body:{storage:{value:req.storage,representation:'storage'}}};
     const saved=await call(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(String(saved.id)!==String(req.pageId)||!Number.isInteger(saved.version?.number)||saved.version.number!==payload.version.number)
-      throw new Error('PUT 已收到响应，但返回的页面 ID/版本不符合预期。请先检查远端是否已经更新，切勿直接重试。');
-    return {updated:true,version:saved.version.number};
+      throw new Error('PUT 已收到响应，但返回的页面 ID/版本不符合预期。已上传附件数：'+uploaded+'。请先检查远端是否已经更新，切勿直接重试。');
+    return {updated:true,version:saved.version.number,attachmentsUploaded:uploaded};
   }
   throw new Error('未知操作。');
 }
@@ -93,10 +121,11 @@ async function preview(){
   try{
     await requestSiteAccess(details);
     const current=SyncCore.requiredPage(await callSite(details,'read'),details.pageId);
-    const wiki=Md2Confluence.convert(els.md.value);
+    const attachmentPlan=AttachmentResolver.prepare(els.md.value,state.resourceFiles,state.sourceRelativePath);
+    const wiki=Md2Confluence.convert(attachmentPlan.markdown);
     const selection=SyncCore.selectConversionMode(els.md.value,els.mode.value);
     let converted=null,mode=selection.mode,method='';
-    const warns=[...wiki.warnings];
+    const warns=[...wiki.warnings,...attachmentPlan.warnings];
     if(selection.warning)warns.push(selection.warning);
     if(mode!=='local'){
       try{
@@ -109,15 +138,18 @@ async function preview(){
         warns.push('服务器 Wiki → Storage 不可用，已经切换为本地基础 Storage 转换。请特别检查源码预览。原因：'+errorText(e));
       }
     }
-    if(!converted){converted=StorageConverter.render(els.md.value);method='本地基础 Storage（兼容模式）';warns.push(...converted.warnings);}
+    if(!converted){converted=StorageConverter.render(attachmentPlan.markdown);method='本地基础 Storage（兼容模式）';warns.push(...converted.warnings);}
     if(typeof converted.value!=='string'||!converted.value.trim())throw new Error('转换后 Storage 正文为空，已拒绝同步。');
+    converted.value=AttachmentResolver.applyStorageTokens(converted.value,attachmentPlan);
     if(state.revision!==requestedRevision)throw new Error('预览时源文档、页面 URL 或转换方式发生变化。请重新执行预览。');
-    const blocked=missingImages.test(els.md.value);
-    if(blocked)warns.push('阻止发布：Markdown 图片需要先转成 Confluence 附件，本版不自动上传图片。');
-    const unchanged=current.storage===converted.value;
-    state.preview={details,current,storage:converted.value,wiki:wiki.output,markdown:els.md.value,blocked,noChange:unchanged,method,warnings:[...new Set(warns)]};
+    const blocked=attachmentPlan.blocked;
+    if(blocked)warns.push('阻止发布：存在未找到的本地文件、路径歧义或附件限制错误，请修复后重新预览。');
+    const unchanged=current.storage===converted.value&&attachmentPlan.uploads.length===0;
+    state.preview={details,current,storage:converted.value,wiki:AttachmentResolver.applyWikiTokens(wiki.output,attachmentPlan),
+      markdown:els.md.value,blocked,noChange:unchanged,method,warnings:[...new Set(warns)],
+      attachments:attachmentPlan.uploads,attachmentPlan};
     showPreview();
-    note('预览生成完成：'+current.title+'（v'+current.version+'）。'+(unchanged?'新旧 Storage 正文相同，无需更新。':blocked?'检测到 Markdown 图片，本版禁止自动覆盖。':'尚未修改任何远端内容。'),'ok');
+    note('预览生成完成：'+current.title+'（v'+current.version+'）。'+(unchanged?'新旧 Storage 正文相同，无需更新。':blocked?'检测到本地附件引用问题，已禁止自动覆盖。':attachmentPlan.uploads.length?'正文尚未修改；同步时将先上传 '+attachmentPlan.uploads.length+' 个附件。':'尚未修改任何远端内容。'),'ok');
     await chrome.storage.local.set({lastPage:details.exactUrl});
   }catch(e){invalidate();note('连接 / 预览失败：'+errorText(e),'err');}
   finally{setBusy(false);}
@@ -156,7 +188,7 @@ function showPreview(){
   const d=diffText(p.current.storage,p.storage);$('diffCount').textContent=`增加 ${d.adds} 段 / 删除 ${d.dels} 段`;
   $('diff').replaceChildren();for(const [kind,txt] of d.rows.slice(0,600)){const line=document.createElement('div');line.className='diff-line '+kind;line.textContent=txt;$('diff').append(line);}
   if(!d.rows.length){const row=document.createElement('div');row.className='diff-line same';row.textContent='文本提取结果无差异；格式或宏仍可能发生变化，请检查 Storage 源码。';$('diff').append(row);}
-  $('backup').disabled=false;$('publishHint').textContent=p.noChange?'内容相同，无需更新':p.blocked?'含 Markdown 图片：禁止发布':'预览已完成，可直接点击「同步更新页面」（整页替换）。';
+  $('backup').disabled=false;$('publishHint').textContent=p.blocked?'本地附件引用未解析或超出限制：禁止发布':p.noChange?'内容相同，无需更新':p.attachments?.length?'预览完成；同步时将先上传 '+p.attachments.length+' 个附件，再更新正文。':'预览已完成，可直接点击「同步更新页面」（整页替换）。';
   $('publish').disabled=!canPublish();
 }
 function saveBlob(blob,filename){
@@ -193,6 +225,21 @@ async function justBackup(){if(!state.preview)return;setBusy(true);note('正在�
   try{const name=await downloadBackup(state.preview);note('原页面备份下载完成：'+name,'ok');}
   catch(e){note('备份失败：'+errorText(e),'err');}finally{setBusy(false);}
 }
+async function encodeAttachment(file){
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  let binary='';
+  for(let offset=0;offset<bytes.length;offset+=0x8000){
+    binary+=String.fromCharCode(...bytes.subarray(offset,Math.min(offset+0x8000,bytes.length)));
+  }
+  return btoa(binary);
+}
+async function serializeAttachments(uploads){
+  const result=[];
+  for(const item of (uploads||[])){
+    result.push({filename:item.filename,mimeType:item.mimeType||item.file?.type||'application/octet-stream',data:await encodeAttachment(item.file)});
+  }
+  return result;
+}
 async function publish(){
   const p=state.preview;
   if(!p||!canPublish()||state.working)return;
@@ -202,11 +249,12 @@ async function publish(){
   // Confluence's native page version history remains available for restoring older content.
   setBusy(true);note('正在重新核对页面版本、标题及正文，随后同步更新…');
   try{
-    const result=await callSite(p.details,'update',{snapshot:p.current,storage:p.storage});
-    if(result?.conflict){invalidate();note('版本冲突：'+result.message+' 最新版本 v'+result.latestVersion+'。未修改远端，请重新预览。','err');return;}
-    if(result?.unchanged){invalidate();note('远端内容与新 Storage 相同，无需更新。','ok');return;}
+    const attachments=await serializeAttachments(p.attachments);
+    const result=await callSite(p.details,'update',{snapshot:p.current,storage:p.storage,attachments});
+    if(result?.conflict){invalidate();note('版本冲突：'+result.message+' 最新版本 v'+result.latestVersion+'。'+(result.uploadedAttachments?'已上传 '+result.uploadedAttachments+' 个附件，但正文未更新。':'未修改远端正文。'),'err');return;}
+    if(result?.unchanged){invalidate();note(result.attachmentsUploaded?'附件已上传/更新 '+result.attachmentsUploaded+' 个；正文内容无需更新。':'远端内容与新 Storage 相同，无需更新。','ok');return;}
     if(!result?.updated)throw new Error('远端未确认更新成功。请打开页面自行核查后再决定是否重试。');
-    invalidate();note(`同步成功！Confluence 已生成 v${result.version}，页面 URL 不变；需要恢复时可使用 Confluence 页面历史。`,'ok');
+    invalidate();note(`同步成功！Confluence 已生成 v${result.version}，上传/更新附件 ${result.attachmentsUploaded||0} 个；页面 URL 不变。`,'ok');
   }catch(e){invalidate();note('同步过程停止：'+errorText(e)+'\n如果已经发起 PUT 但连接中断，请先刷新目标 Confluence 页面确认实际版本，避免重复提交。','err');}
   finally{setBusy(false);}
 }
@@ -218,14 +266,31 @@ $('markdown').addEventListener('input',refreshMarkdown);
 $('mode').addEventListener('change',invalidate);
 $('openPage').addEventListener('click',async()=>{try{const p=parse();await chrome.tabs.create({url:p.exactUrl});}catch(e){note(errorText(e),'err');}});
 $('choose').addEventListener('click',()=>$('file').click());
+$('chooseAttachments').addEventListener('click',()=>$('attachments').click());
+$('chooseResourceDirectory').addEventListener('click',()=>$('resourceDirectory').click());
+function setResourceFiles(fileList,kind){
+  state.resourceFiles=AttachmentResolver.collectFiles(fileList);
+  state.sourceRelativePath=AttachmentResolver.findSourcePath(state.sourceFile,state.resourceFiles);
+  $('assetLabel').textContent=state.resourceFiles.length
+    ?'已选择 '+state.resourceFiles.length+' 个'+kind+'；相对路径优先精确匹配。'
+    :'尚未选择本地附件或资源目录';
+  invalidate();refreshMarkdown();
+}
+$('attachments').addEventListener('change',()=>setResourceFiles($('attachments').files,'附件文件'));
+$('resourceDirectory').addEventListener('change',()=>setResourceFiles($('resourceDirectory').files,'资源目录文件'));
 async function loadFile(file){
   if(!file)return;state.sourceFile=file;state.filename=file.name;
+  state.sourceRelativePath=AttachmentResolver.findSourcePath(file,state.resourceFiles);
   try{const bytes=await file.arrayBuffer();els.md.value=new TextDecoder($('fileEncoding').value).decode(bytes);
     $('fileLabel').textContent='当前文件：'+file.name;refreshMarkdown();}
   catch(e){note('文件读取失败：'+errorText(e),'err');}
 }
 $('file').addEventListener('change',()=>loadFile($('file').files?.[0]));
 $('fileEncoding').addEventListener('change',()=>{if(state.sourceFile)loadFile(state.sourceFile);});
+els.md.addEventListener('paste',()=>{
+  state.sourceFile=null;state.sourceRelativePath='';
+  $('fileLabel').textContent='当前内容：粘贴或手动编辑';
+});
 document.addEventListener('dragover',e=>{if(e.dataTransfer?.types.includes('Files'))e.preventDefault();});
 document.addEventListener('drop',async e=>{const f=Array.from(e.dataTransfer?.files||[]).find(x=>/\.(?:md|markdown|txt)$/i.test(x.name));if(!f)return;e.preventDefault();await loadFile(f);});
 function assertSafeWikiExport(){
