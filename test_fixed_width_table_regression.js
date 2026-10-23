@@ -38,3 +38,39 @@ assert.match(wiki.convert('| Name | Value |\n| --- | --- |\n| A | B |').output, 
 assert.match(storage.render('| Name | Value |\n| --- | --- |\n| A | B |').value, /<th>Name<\/th>/);
 
 console.log('PASS fixed-width text tables convert to Confluence tables');
+
+// Header + ruler tables with blank lines around the ruler are common in
+// copied technical documentation. They must remain a real 3-column table.
+const headedSource = [
+  '##### 3. 两块物理内存',
+  '',
+  '###### NonRetain 区：24 字节',
+  '',
+  '  成员     物理 offset（byte）   大小',
+  '',
+  '------ --------------------- ------',
+  '',
+  '  A                          0      4',
+  '  B                          4      4',
+  '  M                          8      4',
+  '  C.E                       12      4',
+  '  C.F                       16      4',
+  '  XG                        20      4',
+  ''
+].join('\n');
+
+const headedWiki = wiki.convert(headedSource);
+assert.equal(headedWiki.stats.tables, 1);
+assert.match(headedWiki.output, /^\|\|成员\|\|物理 offset（byte）\|\|大小\|\|$/m);
+assert.match(headedWiki.output, /^\|A\|0\|4\|$/m);
+assert.match(headedWiki.output, /^\|XG\|20\|4\|$/m);
+assert.doesNotMatch(headedWiki.output, /^----$/m, 'the column ruler must not become a horizontal rule');
+
+const headedStorage = storage.render(headedSource).value;
+assert.match(headedStorage, /<table><tbody><tr><th>成员<\/th><th>物理 offset（byte）<\/th><th>大小<\/th><\/tr>/);
+assert.equal((headedStorage.match(/<tr>/g) || []).length, 7);
+assert.equal((headedStorage.match(/<th>/g) || []).length, 3);
+assert.equal((headedStorage.match(/<td>/g) || []).length, 18);
+assert.match(headedStorage, /<td>C\.E<\/td><td>12<\/td><td>4<\/td>/);
+assert.doesNotMatch(headedStorage, /<hr \/>/, 'the column ruler must not become a horizontal rule');
+
