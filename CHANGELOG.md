@@ -1,3 +1,10 @@
+## v1.4.11
+
+- Simplify the Markdown toolbar to prioritize project-directory import and single-Markdown import.
+- Remove the always-visible attachment-file and resource-directory buttons.
+- Show a contextual "选择资源目录" button only when local Markdown references need resource access or remain unresolved.
+- Keep pasted Markdown and relative-path attachment upload supported.
+
 ## v1.4.10
 
 - Convert dashed-ruler, space-aligned text tables (for example `------ --------------------- ------` followed by aligned rows) into real Confluence tables.
