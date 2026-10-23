@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const core=require('./sync-core.js');
 const storage=require('./storage-converter.js');
 const wiki=require('./wiki-converter.js');
+const attachments=require('./attachment-resolver.js');
 const BT=String.fromCharCode(96);
 const md='取BIT数组'+BT+'VARSTRUCT1.B[index]'+BT+'解析有问题';
 for(const sample of [
@@ -38,16 +39,15 @@ const editor=fs.readFileSync(__dirname+'/editor.js','utf8');
 const fn=editor.slice(editor.indexOf('async function preview(){'),editor.indexOf('function textBlocks(storage)'));
 assert.ok(fn.includes('SyncCore.selectConversionMode'));
 assert.ok(editor.includes('function assertSafeWikiExport()'));
-assert.ok(editor.includes('assertSafeWikiExport();await navigator.clipboard.writeText'));
-assert.ok(editor.includes('assertSafeWikiExport();const s=Md2Confluence.convert'));
+assert.ok(editor.includes('const output=createWikiExport();await navigator.clipboard.writeText'));
+assert.ok(editor.includes('const output=createWikiExport();saveBlob'));
 async function check(mode,shouldWork){
  const calls=[];let rendered=null,error=null;
- const state={revision:0,preview:null};
+ const state={revision:0,preview:null,resourceFiles:[],sourceRelativePath:'',sourceFile:null};
  const page={id:'12345',type:'page',title:'PLC',version:{number:2},body:{storage:{value:'<p>old</p>'}}};
  const details={pageId:'12345',exactUrl:'http://intra.example/pages/viewpage.action?pageId=12345'};
  const context=vm.createContext({
-   state,els:{md:{value:md},mode:{value:mode}},SyncCore:core,Md2Confluence:wiki,StorageConverter:storage,
-   missingImages:/!\[[^\]]*\]\([^)]+\)/,
+   state,els:{md:{value:md},mode:{value:mode}},SyncCore:core,Md2Confluence:wiki,StorageConverter:storage,AttachmentResolver:attachments,
    requestSiteAccess:async()=>{},parse:()=>details,setBusy:()=>{},
    invalidate:()=>{state.revision++;state.preview=null;},
    callSite:async(_d,operation)=>{calls.push(operation);if(operation==='read')return page;throw Error('Unsafe server convert called');},
