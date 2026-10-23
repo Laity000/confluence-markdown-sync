@@ -13,7 +13,7 @@ assert.match(html, /id="chooseResourceDirectory">仅选择资源目录/);
 assert.match(editor, /AttachmentResolver\.listMarkdownFiles\(entries\)/);
 assert.match(editor, /await loadFile\(selected\.file,selected\.path\)/);
 assert.match(editor, /localReferences\.length&&!state\.resourceFiles\.length/);
-assert.match(editor, /请选择本地资源/);
+assert.match(editor, /选择项目目录.*仅选择资源目录/);
 
 const mock = name => ({name,size:1,lastModified:1,webkitRelativePath:'project/'+name});
 const entries = Resolver.collectFiles([
