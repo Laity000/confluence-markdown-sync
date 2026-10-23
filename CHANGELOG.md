@@ -1,3 +1,10 @@
+## v1.4.12
+
+- If the update response is missing or ambiguous, read the Confluence page back before reporting failure.
+- Confirm success when the remote Storage body matches the intended content.
+- Distinguish confirmed non-update from an unexpected remote change; never automatically retry a write.
+- Add regression tests for missing-response outcomes.
+
 ## v1.4.11
 
 - Simplify the Markdown toolbar to prioritize project-directory import and single-Markdown import.

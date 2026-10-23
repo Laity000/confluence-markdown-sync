@@ -244,6 +244,14 @@ async function serializeAttachments(uploads){
   }
   return result;
 }
+async function verifyPublishOutcome(p){
+  const data=await callSite(p.details,'read');
+  const latest=SyncCore.requiredPage(data,p.current.id);
+  if(latest.storage===p.storage)return {status:'updated',latest};
+  if(latest.version===p.current.version&&latest.title===p.current.title&&latest.storage===p.current.storage)
+    return {status:'not-updated',latest};
+  return {status:'changed',latest};
+}
 async function publish(){
   const p=state.preview;
   if(!p||!canPublish()||state.working)return;
@@ -254,11 +262,31 @@ async function publish(){
   setBusy(true);note('正在重新核对页面版本、标题及正文，随后同步更新…');
   try{
     const attachments=await serializeAttachments(p.attachments);
-    const result=await callSite(p.details,'update',{snapshot:p.current,storage:p.storage,attachments});
+    let result=null,updateError=null;
+    try{
+      result=await callSite(p.details,'update',{snapshot:p.current,storage:p.storage,attachments});
+    }catch(e){updateError=e;}
     if(result?.conflict){invalidate();note('版本冲突：'+result.message+' 最新版本 v'+result.latestVersion+'。'+(result.uploadedAttachments?'已上传 '+result.uploadedAttachments+' 个附件，但正文未更新。':'未修改远端正文。'),'err');return;}
     if(result?.unchanged){invalidate();note(result.attachmentsUploaded?'附件已上传/更新 '+result.attachmentsUploaded+' 个；正文内容无需更新。':'远端内容与新 Storage 相同，无需更新。','ok');return;}
-    if(!result?.updated)throw new Error('远端未确认更新成功。请打开页面自行核查后再决定是否重试。');
-    invalidate();note(`同步成功！Confluence 已生成 v${result.version}，上传/更新附件 ${result.attachmentsUploaded||0} 个；页面 URL 不变。`,'ok');
+    if(result?.updated){
+      invalidate();note('同步成功！Confluence 已生成 v'+result.version+'，上传/更新附件 '+(result.attachmentsUploaded||0)+' 个；页面 URL 不变。','ok');return;
+    }
+    // The REST write may have succeeded even if its response was lost or malformed.
+    // Read the page back before asking the user to retry, so we don't create duplicate updates.
+    let verification;
+    try{verification=await verifyPublishOutcome(p);}
+    catch(readError){
+      const original=updateError?' 原始同步错误：'+errorText(updateError):' 同步接口没有返回可识别的成功结果。';
+      throw new Error('无法确认本次同步结果：重新读取 Confluence 页面也失败。'+original+' 复核错误：'+errorText(readError)+'。请手动刷新目标页面核对版本后再操作。');
+    }
+    if(verification.status==='updated'){
+      invalidate();note('同步已通过重新读取远端页面确认成功：当前版本 v'+verification.latest.version+'，正文与本次预览一致。'+(attachments.length?' 本次包含附件；请确认页面附件列表。':''),'ok');return;
+    }
+    if(verification.status==='not-updated'){
+      const original=updateError?' 原始同步错误：'+errorText(updateError):'服务器未返回可识别的成功结果。';
+      invalidate();note('同步未完成：已重新读取远端，确认正文仍未更新（v'+verification.latest.version+'）。'+original+(attachments.length?' 本次可能已上传部分附件，请检查附件列表后再重新预览。':' 请检查页面权限或 Confluence 服务状态后再重新预览。'),'err');return;
+    }
+    invalidate();note('同步结果不确定：远端页面已变化为 v'+verification.latest.version+'，但正文与本次预览不一致。为避免覆盖其他人的修改，未自动重试。请打开页面核对正文及版本，再重新生成预览。'+(updateError?' 原始同步错误：'+errorText(updateError):''),'err');
   }catch(e){invalidate();note('同步过程停止：'+errorText(e)+'\n如果已经发起 PUT 但连接中断，请先刷新目标 Confluence 页面确认实际版本，避免重复提交。','err');}
   finally{setBusy(false);}
 }
