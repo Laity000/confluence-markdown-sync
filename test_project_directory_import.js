@@ -9,11 +9,15 @@ const editor = fs.readFileSync(__dirname + '/editor.js', 'utf8');
 assert.match(html, /id="chooseProjectDirectory">选择项目目录/);
 assert.match(html, /id="projectDirectory"[^>]*webkitdirectory/);
 assert.match(html, /id="projectMarkdownSelect"/);
-assert.match(html, /id="chooseResourceDirectory">仅选择资源目录/);
+assert.match(html, /id="chooseResourceDirectory"[^>]*hidden>选择资源目录/);
+assert.doesNotMatch(html, /id="chooseAttachments"/);
+assert.doesNotMatch(html, /id="attachments"/);
 assert.match(editor, /AttachmentResolver\.listMarkdownFiles\(entries\)/);
 assert.match(editor, /await loadFile\(selected\.file,selected\.path\)/);
-assert.match(editor, /localReferences\.length&&!state\.resourceFiles\.length/);
-assert.match(editor, /选择项目目录.*仅选择资源目录/);
+assert.match(editor, /const needsResources=localReferences\.length>0&&\(!state\.resourceFiles\.length\|\|attachmentPlan\.blocked\)/);
+assert.match(editor, /\$\('chooseResourceDirectory'\)\.hidden=!needsResources/);
+assert.match(editor, /选择项目目录/);
+assert.match(editor, /选择资源目录/);
 
 const mock = name => ({name,size:1,lastModified:1,webkitRelativePath:'project/'+name});
 const entries = Resolver.collectFiles([

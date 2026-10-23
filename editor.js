@@ -11,7 +11,7 @@ function note(message,type='info'){
 function errorText(e){return String(e?.message||e||'未知错误').slice(0,1800);}
 function setBusy(flag){state.working=flag; $('preview').disabled=flag;$('openPage').disabled=flag; $('publish').disabled=flag||!canPublish();$('backup').disabled=flag||!state.preview;
   els.url.disabled=flag;els.md.disabled=flag;els.mode.disabled=flag;$('chooseProjectDirectory').disabled=flag;$('projectDirectory').disabled=flag;$('choose').disabled=flag;$('file').disabled=flag;$('fileEncoding').disabled=flag;
-  $('chooseAttachments').disabled=flag;$('attachments').disabled=flag;$('chooseResourceDirectory').disabled=flag;$('resourceDirectory').disabled=flag;$('projectMarkdownSelect').disabled=flag;}
+  $('chooseResourceDirectory').disabled=flag;$('resourceDirectory').disabled=flag;$('projectMarkdownSelect').disabled=flag;}
 function canPublish(){return !!state.preview && !state.preview.noChange && !state.preview.blocked;}
 function invalidate(){state.revision++;state.preview=null;$('diffPanel').hidden=true;els.meta.hidden=true;$('backup').disabled=true;$('publish').disabled=true;$('publishHint').textContent='源文档或目标发生变化，请重新生成预览。';}
 function refreshMarkdown(){
@@ -21,7 +21,9 @@ function refreshMarkdown(){
   const res=Md2Confluence.convert(attachmentPlan.markdown);
   $('parseInfo').textContent=`${md.length.toLocaleString()} 字符 · ${res.stats.headings} 个标题 · ${res.stats.codeBlocks} 个代码块 · ${res.stats.tables} 个表格 · ${res.stats.lists} 个列表项 · ${attachmentPlan.references.length} 个本地文件引用`;
   let warns=[...res.warnings,...attachmentPlan.warnings];
-  if(localReferences.length&&!state.resourceFiles.length)warns.push('检测到本地文件引用；尚未选择本地资源。请点击「选择项目目录」或「仅选择资源目录」，授权读取引用的文件。');
+  const needsResources=localReferences.length>0&&(!state.resourceFiles.length||attachmentPlan.blocked);
+  $('chooseResourceDirectory').hidden=!needsResources;
+  if(localReferences.length&&!state.resourceFiles.length)warns.push('检测到本地文件引用；请点击此处的「选择资源目录」，授权读取引用的图片或附件。也可以改用「选择项目目录」一次导入 Markdown 和资源。');
   if(SyncCore.hasWikiSensitiveBrackets(md))warns.push('包含 PLC 方括号表达式：自动同步将直接使用 Storage XHTML；请勿复制或导出 Wiki 标记手动导入，以免 Confluence 将 [index] 误转为链接。');
   $('mdWarnings').hidden=!warns.length;$('mdWarnings').textContent=[...new Set(warns)].join('\n');
   return res;
@@ -269,7 +271,6 @@ $('mode').addEventListener('change',invalidate);
 $('openPage').addEventListener('click',async()=>{try{const p=parse();await chrome.tabs.create({url:p.exactUrl});}catch(e){note(errorText(e),'err');}});
 $('chooseProjectDirectory').addEventListener('click',()=>$('projectDirectory').click());
 $('choose').addEventListener('click',()=>$('file').click());
-$('chooseAttachments').addEventListener('click',()=>$('attachments').click());
 $('chooseResourceDirectory').addEventListener('click',()=>$('resourceDirectory').click());
 
 function updateAssetLabel(kind){
@@ -277,20 +278,8 @@ function updateAssetLabel(kind){
     ?'已授权 '+state.resourceFiles.length+' 个'+kind+'；本地引用按相对路径优先匹配。'
     :'尚未选择本地附件或资源目录';
 }
-function setResourceFiles(fileList,kind,append=false){
-  const incoming=AttachmentResolver.collectFiles(fileList);
-  if(append){
-    const merged=state.resourceFiles.slice();
-    for(const entry of incoming){
-      const duplicate=merged.some(existing=>existing.path.toLowerCase()===entry.path.toLowerCase()&&
-        Number(existing.file?.size)===Number(entry.file?.size)&&
-        Number(existing.file?.lastModified||0)===Number(entry.file?.lastModified||0));
-      if(!duplicate)merged.push(entry);
-    }
-    state.resourceFiles=merged;
-  }else{
-    state.resourceFiles=incoming;
-  }
+function setResourceFiles(fileList,kind){
+  state.resourceFiles=AttachmentResolver.collectFiles(fileList);
   state.sourceRelativePath=AttachmentResolver.findSourcePath(state.sourceFile,state.resourceFiles);
   updateAssetLabel(kind);
   invalidate();refreshMarkdown();
@@ -352,7 +341,6 @@ $('projectMarkdownSelect').addEventListener('change',async()=>{
   const selected=state.projectMarkdownFiles.find(entry=>entry.path===$('projectMarkdownSelect').value);
   if(selected)await loadFile(selected.file,selected.path);
 });
-$('attachments').addEventListener('change',()=>setResourceFiles($('attachments').files,'附件文件',true));
 $('resourceDirectory').addEventListener('change',()=>setResourceFiles($('resourceDirectory').files,'资源目录文件'));
 $('file').addEventListener('change',async()=>{
   const file=$('file').files?.[0];
@@ -378,7 +366,7 @@ function assertSafeWikiExport(){
 function createWikiExport(){
   assertSafeWikiExport();
   const plan=AttachmentResolver.prepare(els.md.value,state.resourceFiles,state.sourceRelativePath);
-  if(plan.blocked)throw new Error('本地附件未全部找到或超过大小/格式限制。请先选择资源文件并修复提示，再导出 Wiki Markup。');
+  if(plan.blocked)throw new Error('本地附件未全部找到或超过大小/格式限制。请先选择资源目录并修复提示，再导出 Wiki Markup。');
   return AttachmentResolver.applyWikiTokens(Md2Confluence.convert(plan.markdown).output,plan);
 }
 $('copyWiki').addEventListener('click',async()=>{try{const output=createWikiExport();await navigator.clipboard.writeText(output);note('Wiki Markup 已复制；本地附件引用已转换为 Confluence 附件语法，但附件仍需先上传。','ok');}catch(e){note('复制失败：'+errorText(e),'err');}});
