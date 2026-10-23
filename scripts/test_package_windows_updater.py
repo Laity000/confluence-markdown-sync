@@ -21,7 +21,7 @@ class WindowsUpdaterPackageTest(unittest.TestCase):
                 updater = archive.read("windows/Update-ConfluenceSync.ps1").decode("utf-8")
                 self.assertIn("# UpdaterVersion: 1.4.6", updater)
                 self.assertNotIn("# UpdaterVersion: 0.0.0", updater)
-                self.assertIn("Update-ConfluenceSyncBootstrap.ps1", archive.namelist())
+                self.assertIn("windows/Update-ConfluenceSyncBootstrap.ps1", archive.namelist())
                 for relative in SOURCE_FILES:
                     if relative != "windows/Update-ConfluenceSync.ps1":
                         self.assertEqual(archive.read(relative), (ROOT / relative).read_bytes())
