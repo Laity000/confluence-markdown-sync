@@ -51,6 +51,12 @@
     let target = decodeTarget(raw).replace(/[?#].*$/, '');
     if (/^[a-z]:[\\/]/i.test(target) || /^file:/i.test(target) || target.startsWith('/')) return null;
     const base = basename(sourceRelativePath) ? String(sourceRelativePath).replace(/\\/g, '/').split('/').slice(0, -1).join('/') : '';
+    if (!base) {
+      target = target.replace(/^(?:\.\/)+/, '');
+      // Pasted Markdown has no known source directory. Treat leading parent hops as a path hint,
+      // then require a unique matching resource path/basename in the selected files.
+      target = target.replace(/^(?:\.\.\/)+/, '');
+    }
     return normalizePath(target, base);
   }
   function collectFiles(fileList) {
@@ -70,6 +76,8 @@
   function findSourcePath(sourceFile, entries) {
     if (!sourceFile) return '';
     const list = Array.from(entries || []);
+    const exactObject = list.filter(entry => entry.file === sourceFile);
+    if (exactObject.length === 1) return exactObject[0].path;
     const same = list.filter(entry =>
       basename(entry.path) === sourceFile.name &&
       Number(entry.file?.size) === Number(sourceFile.size) &&
@@ -79,6 +87,12 @@
     const byName = list.filter(entry => basename(entry.path) === sourceFile.name);
     if (byName.length === 1) return byName[0].path;
     return sourceFile.name;
+  }
+  function listMarkdownFiles(entries) {
+    const list = Array.from(entries || []).filter(entry => entry && entry.file && entry.path);
+    const markdown = list.filter(entry => /\.(?:md|markdown)$/i.test(entry.path));
+    const candidates = markdown.length ? markdown : list.filter(entry => /\.txt$/i.test(entry.path));
+    return candidates.slice().sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' }));
   }
   function maskInlineCode(line) {
     const chars = line.split('');
@@ -296,7 +310,7 @@
     return result;
   }
   return {
-    MAX_FILE_BYTES, MAX_TOTAL_BYTES, collectFiles, findSourcePath, findReferences,
+    MAX_FILE_BYTES, MAX_TOTAL_BYTES, collectFiles, findSourcePath, listMarkdownFiles, findReferences,
     normalizePath, prepare, applyStorageTokens, applyWikiTokens
   };
 });

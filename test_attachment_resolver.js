@@ -13,7 +13,21 @@ const folderFiles = [
 ];
 const entries = Resolver.collectFiles(folderFiles);
 assert.deepEqual(entries.map(x=>x.path), ['docs/guide.md','images/arch.png','docs/spec.pdf']);
+
+assert.equal(Resolver.listMarkdownFiles(entries).length, 1);
+assert.equal(Resolver.listMarkdownFiles(entries)[0].path, 'docs/guide.md');
 assert.equal(Resolver.findSourcePath(folderFiles[0], entries), 'docs/guide.md');
+
+const multipleMarkdown = Resolver.listMarkdownFiles([
+  {path:'z/guide10.md',file:file('guide10.md',10)},
+  {path:'a/README.md',file:file('README.md',20)},
+  {path:'a/design.pdf',file:file('design.pdf',30)}
+]);
+assert.deepEqual(multipleMarkdown.map(x=>x.path), ['a/README.md','z/guide10.md']);
+assert.deepEqual(Resolver.listMarkdownFiles([
+  {path:'notes.txt',file:file('notes.txt',10)},
+  {path:'manual.pdf',file:file('manual.pdf',20)}
+]).map(x=>x.path), ['notes.txt']);
 
 const md = [
   '# Guide',
@@ -45,6 +59,12 @@ assert.match(storage, /<ac:link><ri:attachment ri:filename="spec\.pdf" \/><ac:pl
 const wiki = Resolver.applyWikiTokens('CMSYNCATTACHMENTTOKEN0TOKEN CMSYNCATTACHMENTTOKEN1TOKEN', plan);
 assert.match(wiki, /!arch\.png\|alt=Architecture!/);
 assert.match(wiki, /\[Specification\^spec\.pdf\]/);
+
+const pastedParentRelative = Resolver.prepare('[Design](../assets/design.pdf)', [
+  {path:'assets/design.pdf',file:file('design.pdf',30)}
+], '');
+assert.equal(pastedParentRelative.blocked, false);
+assert.equal(pastedParentRelative.uploads[0].filename, 'design.pdf');
 
 const missing = Resolver.prepare('![Missing](./missing.png)', [], 'guide.md');
 assert.equal(missing.blocked, true);
