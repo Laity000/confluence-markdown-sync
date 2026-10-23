@@ -50,7 +50,7 @@
     s = s.replace(/!\[([^\]]*)\]\(\s*(<[^>]+>|[^\s)]+)(?:\s+["'][^"']*["'])?\s*\)/g, (_, alt, url) => {
       state.stats.images++;
       if (!state.warnedImage) {
-        state.warnings.push('图片路径仅转换为 Confluence 图片引用；本地图片需先上传为页面附件。');
+        state.warnings.push('Markdown 图片会转换为 Confluence 图片引用；本地图片需先选择资源文件，并在同步时上传为页面附件。');
         state.warnedImage = true;
       }
       url = url.replace(/^<|>$/g, '');
