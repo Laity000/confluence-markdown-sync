@@ -25,6 +25,12 @@ class TestEdgePublishing(unittest.TestCase):
         with patch("publish_edge_addon.request", return_value=(200, "", b'{"status":"Failed","errorCode":"Rejected"}')):
             with self.assertRaisesRegex(RuntimeError, "Rejected"):
                 wait_for("/products/id/submissions/operations/id", {})
+        with patch("publish_edge_addon.request", side_effect=[
+            (202, "", b'{"status":"InProgress"}'),
+            (202, "", b''),
+            (200, "", b'{"status":"Succeeded"}')]):
+            wait_for("/products/id/submissions/operations/id", {}, sleep=lambda _: None)
+
 
     def test_submission(self):
         with tempfile.TemporaryDirectory() as temp:
