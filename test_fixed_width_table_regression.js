@@ -112,3 +112,51 @@ assert.match(ruledStorage, /<td><code>target variable STD__VAR<\/code><\/td><td>
 assert.doesNotMatch(ruledStorage, /&#x20;/);
 
 console.log('PASS standalone horizontal rules and HTML-space-prefixed fixed-width tables convert correctly');
+
+// Actual LLDB example: one continuous top border, a two-column dashed ruler,
+// and rows separated by blank lines. Column content contains inline-code spaces.
+const simpleSource=[
+  '##### 2. 当前测试现象',
+  '',
+  '------------------------------------------------------------------------------------------------',
+  '  LLDB 命令                           结果',
+  '----------------------------------- ------------------------------------------------------------',
+  '  \x60target variable STD__VAR\x60          失败，提示找不到全局变量（分析点？）',
+  '',
+  '  \x60target variable STD.VAR\x60           失败（正常）',
+  '',
+  '  \x60target variable -r \x27^VAR$\x27\x60        成功（正则匹配）',
+  '',
+  '  \x60frame variable STD__VAR\x60           成功'
+].join('\n');
+const simpleWiki=wiki.convert(simpleSource);
+assert.equal(simpleWiki.stats.tables,1,'the LLDB table must count as one table');
+assert.match(simpleWiki.output,/^\|\|LLDB 命令\|\|结果\|\|$/m);
+assert.match(simpleWiki.output,/^\|\{\{target variable STD__VAR\}\}\|失败，提示找不到全局变量（分析点？）\|$/m);
+assert.match(simpleWiki.output,/^\|\{\{target variable -r '\^VAR\$'\}\}\|成功（正则匹配）\|$/m);
+assert.match(simpleWiki.output,/^\|\{\{frame variable STD__VAR\}\}\|成功\|$/m);
+assert.equal((simpleWiki.output.match(/^\|/gm)||[]).length,5);
+assert.doesNotMatch(simpleWiki.output,/^----$/m,'top border must not become an ordinary horizontal rule');
+
+const simpleStorage=storage.render(simpleSource).value;
+assert.match(simpleStorage,/<h5>2\. 当前测试现象<\/h5>/);
+assert.match(simpleStorage,/<table><tbody><tr><th>LLDB 命令<\/th><th>结果<\/th><\/tr>/);
+assert.equal((simpleStorage.match(/<tr>/g)||[]).length,5);
+assert.equal((simpleStorage.match(/<th>/g)||[]).length,2);
+assert.equal((simpleStorage.match(/<td>/g)||[]).length,8);
+assert.match(simpleStorage,/<td><code>target variable STD__VAR<\/code><\/td><td>失败，提示找不到全局变量（分析点？）<\/td>/);
+assert.match(simpleStorage,/<td><code>target variable -r '\^VAR\$'<\/code><\/td><td>成功（正则匹配）<\/td>/);
+assert.doesNotMatch(simpleStorage,/<hr \/>/,'a table border must not be rendered as an hr');
+
+// A closing ruler, if supplied, should be consumed as part of the table.
+const withClosingRuler=simpleSource+'\n----------------------------------- ------------------------------------------------------------\n';
+assert.equal((wiki.convert(withClosingRuler).output.match(/^\|/gm)||[]).length,5);
+assert.equal((storage.render(withClosingRuler).value.match(/<tr>/g)||[]).length,5);
+
+// A plain horizontal rule is not a table without a two-column dashed ruler.
+const ruleOnly='Intro\n\n------------------------------------------------------------------------------------------------\n  LLDB 命令                           结果\n\nText without a dashed column ruler';
+assert.equal(wiki.convert(ruleOnly).stats.tables,0);
+assert.match(storage.render(ruleOnly).value,/<hr \/>/);
+
+console.log('PASS LLDB reStructuredText simple tables with ruled columns and blank lines');
+
