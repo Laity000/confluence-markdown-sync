@@ -195,4 +195,6 @@ Confluence Server 的 Wiki 解析器可能将 `{{VARSTRUCT1.B[index]}}` 中的 `
 
 支持将独立 `---` 横线包围的、通过多个空格对齐的表格识别为真正的 Confluence 表格；支持行间空行，并处理 `&#x20;` 等行首 HTML 空格实体。Wiki Markup 和 Storage XHTML 两种转换方式均已覆盖。
 
+## v1.4.16：支持长横线与列宽分隔线构成的表格
 
+识别 reStructuredText 风格的 simple table：顶部一整行横线、表头、按列宽分隔的多组短横线，以及空格对齐的数据行；支持数据行之间的空行、行内代码和可选的表格底边框。保留之前的普通 Markdown 分割线及管道表格处理逻辑。

@@ -244,6 +244,60 @@
     }
     return rows.length >= 2 ? { header, rows, end: lastRowEnd } : null;
   }
+  // reStructuredText/simple-table style:
+  // --------------------------------------------------------------------------------
+  //   LLDB 命令                           结果
+  // ----------------------------------- --------------------------------------------------
+  //   \`target variable STD__VAR\`          失败
+  // Blank lines may separate rows. Column boundaries come from the dashed ruler,
+  // not from ordinary Markdown's horizontal-rule or Setext-heading syntax.
+  function simpleTableColumns(line) {
+    if (!/^\s*-{3,}(?:[ \t]+-{3,})+\s*$/.test(line)) return null;
+    const spans = [...line.matchAll(/-{3,}/g)];
+    return spans.length >= 2 ? spans.map(match => match.index) : null;
+  }
+  function simpleTableCells(line, columns) {
+    const normalized = String(line).replace(/&#(?:x0*20|0*32);/gi, ' ');
+    const cells = columns.map((start, i) =>
+      normalized.slice(start, i + 1 < columns.length ? columns[i + 1] : undefined).trim()
+    );
+    return cells.every(Boolean) ? cells : null;
+  }
+  function simpleRuleTable(lines, i) {
+    if (i >= lines.length || !isHorizontal(lines[i])) return null;
+    const skipBlanks = start => {
+      let at = start, count = 0;
+      while (at < lines.length && !lines[at].trim() && count < 2) { at++; count++; }
+      return at;
+    };
+    const headerAt = skipBlanks(i + 1);
+    if (headerAt >= lines.length || !lines[headerAt].trim()) return null;
+    const rulerAt = skipBlanks(headerAt + 1);
+    if (rulerAt >= lines.length) return null;
+    const columns = simpleTableColumns(lines[rulerAt]);
+    if (!columns) return null;
+    const header = simpleTableCells(lines[headerAt], columns);
+    if (!header) return null;
+    let at = skipBlanks(rulerAt + 1), end = at;
+    const rows = [];
+    while (at < lines.length) {
+      if (!lines[at].trim()) {
+        const next = skipBlanks(at);
+        if (next >= lines.length || !lines[next].trim()) break;
+        at = next;
+      }
+      const line = lines[at];
+      if (simpleTableColumns(line)) { end = at + 1; break; } // optional bottom border
+      if (isHorizontal(line) || isFenceStart(line) || /^ {0,3}#{1,6}\s+/.test(line) ||
+          listItem(line) || /^\s*>/.test(line) || line.includes('|')) break;
+      const cells = simpleTableCells(line, columns);
+      if (!cells) break;
+      rows.push(cells);
+      at++;
+      end = at;
+    }
+    return rows.length >= 2 ? { header, rows, end } : null;
+  }
   function isStartBlock(lines, i) {
     if (i >= lines.length) return true;
     let t = lines[i];
@@ -289,6 +343,15 @@
       if (line.trim() && i+1<lines.length && /^ {0,3}(?:=+|-{3,})\s*$/.test(lines[i+1]) && !isFenceStart(line) && !listItem(line)) {
         resetList(); out.push('h'+(lines[i+1].trim().startsWith('=')?'1':'2')+'. '+inline(line.trim(),state));
         state.stats.headings++; i+=2; continue;
+      }
+      const simpleTable = simpleRuleTable(lines, i);
+      if (simpleTable) {
+        resetList(); state.stats.tables++;
+        const renderCell = cell => inline(cell, state).replace(/\n/g, ' ');
+        out.push('||' + simpleTable.header.map(renderCell).join('||') + '||');
+        for (const row of simpleTable.rows) out.push('|' + row.map(renderCell).join('|') + '|');
+        i = simpleTable.end;
+        continue;
       }
       const ruledFixedTable = fixedWidthRuleTable(lines, i);
       if (ruledFixedTable) {
