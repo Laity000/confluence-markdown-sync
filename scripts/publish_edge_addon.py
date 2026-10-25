@@ -47,8 +47,14 @@ def request(path, headers, data=None):
 def wait_for(path, headers, limit=40, sleep=time.sleep):
     for attempt in range(limit):
         code, _, body = request(path, headers)
-        if code != 200:
+        if code not in (200, 202):
             raise RuntimeError("Unexpected Edge operation status HTTP " + str(code))
+        # Microsoft can return 202 while an asynchronous operation is pending.
+        # Some gateways temporarily return an empty body for that state.
+        if code == 202 and not body.strip():
+            if attempt < limit - 1:
+                sleep(8)
+            continue
         response = json.loads(body)
         if response.get("status") == "Succeeded":
             return
