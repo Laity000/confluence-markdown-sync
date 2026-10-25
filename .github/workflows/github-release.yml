@@ -92,7 +92,7 @@ jobs:
   edge_publish:
     # The Update API cannot create a new Edge product; first listing is manual.
     needs: release
-    if: ${{ vars.EDGE_PRODUCT_ID != '' && ((github.event_name == 'workflow_dispatch' && inputs.publish_edge) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[edge-submit-v1.4.16]') && needs.release.outputs.version == '1.4.16')) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_edge && vars.EDGE_PRODUCT_ID != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
