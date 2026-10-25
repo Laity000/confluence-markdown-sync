@@ -145,7 +145,7 @@ assert.equal((simpleStorage.match(/<tr>/g)||[]).length,5);
 assert.equal((simpleStorage.match(/<th>/g)||[]).length,2);
 assert.equal((simpleStorage.match(/<td>/g)||[]).length,8);
 assert.match(simpleStorage,/<td><code>target variable STD__VAR<\/code><\/td><td>失败，提示找不到全局变量（分析点？）<\/td>/);
-assert.match(simpleStorage,/<td><code>target variable -r '\^VAR\$'<\/code><\/td><td>成功（正则匹配）<\/td>/);
+assert.match(simpleStorage,/<td><code>target variable -r &apos;\^VAR\assert.match(simpleStorage,/<td><code>target variable -r '\^VAR\$'<\/code><\/td><td>成功（正则匹配）<\/td>/);apos;<\/code><\/td><td>成功（正则匹配）<\/td>/);
 assert.doesNotMatch(simpleStorage,/<hr \/>/,'a table border must not be rendered as an hr');
 
 // A closing ruler, if supplied, should be consumed as part of the table.
