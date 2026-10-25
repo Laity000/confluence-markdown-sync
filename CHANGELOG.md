@@ -1,3 +1,10 @@
+## v1.4.16
+
+- Recognize reStructuredText-style simple tables with a long top border, a dashed column-width ruler, and space-aligned data rows.
+- Derive cell boundaries from the dashed column ruler rather than treating its groups as ordinary Markdown horizontal rules.
+- Preserve inline-code commands, optional blank lines between rows, and optional closing table borders.
+- Support both Wiki Markup and Storage XHTML conversion paths. Add regression tests for the exact LLDB command/results example.
+
 ## v1.4.15
 
 - Recognize space-aligned tables enclosed by standalone horizontal rules, including blank lines between rows.
