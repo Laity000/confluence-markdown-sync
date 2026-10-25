@@ -123,6 +123,49 @@
     }
     return rows.length>=2?{header,rows,end:lastRowEnd}:null;
   }
+  function simpleTableColumns(line){
+    if(!/^\s*-{3,}(?:[ \t]+-{3,})+\s*$/.test(line))return null;
+    const spans=[...line.matchAll(/-{3,}/g)];
+    return spans.length>=2?spans.map(match=>match.index):null;
+  }
+  function simpleTableCells(line,columns){
+    const normalized=String(line).replace(/&#(?:x0*20|0*32);/gi,' ');
+    const cells=columns.map((start,i)=>normalized.slice(start,i+1<columns.length?columns[i+1]:undefined).trim());
+    return cells.every(Boolean)?cells:null;
+  }
+  function simpleRuleTable(lines,i){
+    if(i>=lines.length||!isStandaloneHorizontalRule(lines[i]))return null;
+    const skipBlanks=start=>{
+      let at=start,count=0;
+      while(at<lines.length&&!lines[at].trim()&&count<2){at++;count++;}
+      return at;
+    };
+    const headerAt=skipBlanks(i+1);
+    if(headerAt>=lines.length||!lines[headerAt].trim())return null;
+    const rulerAt=skipBlanks(headerAt+1);
+    if(rulerAt>=lines.length)return null;
+    const columns=simpleTableColumns(lines[rulerAt]);
+    if(!columns)return null;
+    const header=simpleTableCells(lines[headerAt],columns);
+    if(!header)return null;
+    let at=skipBlanks(rulerAt+1),end=at;
+    const rows=[];
+    while(at<lines.length){
+      if(!lines[at].trim()){
+        const next=skipBlanks(at);
+        if(next>=lines.length||!lines[next].trim())break;
+        at=next;
+      }
+      const line=lines[at];
+      if(simpleTableColumns(line)){end=at+1;break;}
+      if(isStandaloneHorizontalRule(line)||fenceStart(line)||/^ {0,3}#{1,6}\s+/.test(line)||
+         listItem(line)||/^\s*>/.test(line)||line.includes('|'))break;
+      const cells=simpleTableCells(line,columns);
+      if(!cells)break;
+      rows.push(cells);at++;end=at;
+    }
+    return rows.length>=2?{header,rows,end}:null;
+  }
   function listItem(line){let m=line.match(/^(\s{0,24})([-+*]|\d+[.)])\s+(.*)$/);return m?{indent:m[1].length,type:/\d/.test(m[2][0])?'ol':'ul',text:m[3]}:null;}
   function fenceStart(line){let m=line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);return m?{symbol:m[1][0],count:m[1].length,lang:m[2].trim().split(/\s+/)[0]||'none'}:null;}
   function code(body,language,warnings){
@@ -147,6 +190,13 @@
       if(head){closeList();out.push('<h'+head[1].length+'>'+inline(head[2],warnings)+'</h'+head[1].length+'>');i++;continue;}
       if(line.trim()&&i+1<lines.length&&/^ {0,3}(?:=+|-{3,})\s*$/.test(lines[i+1])&&!listItem(line)){
         closeList();let h=lines[i+1].trim()[0]==='='?1:2;out.push('<h'+h+'>'+inline(line.trim(),warnings)+'</h'+h+'>');i+=2;continue;
+      }
+      const simpleTable=simpleRuleTable(lines,i);
+      if(simpleTable){
+        closeList();
+        let table='<table><tbody><tr>'+simpleTable.header.map(v=>'<th>'+inline(v,warnings)+'</th>').join('')+'</tr>';
+        for(const row of simpleTable.rows)table+='<tr>'+row.map(v=>'<td>'+inline(v,warnings)+'</td>').join('')+'</tr>';
+        out.push(table+'</tbody></table>');i=simpleTable.end;continue;
       }
       const ruledFixedTable=fixedWidthRuleTable(lines,i);
       if(ruledFixedTable){
